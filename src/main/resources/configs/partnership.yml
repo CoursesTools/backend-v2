@@ -1,0 +1,19 @@
+partnership:
+  discount:
+    month: 30
+    year: 15
+    lifetime: 10
+
+  levels:
+    - rank: 0
+      name: START 5
+      required-referrals: 10
+      cashback-1: 14
+      cashback-2: 7
+      cashback-3: 5
+    - rank: 1
+      name: START 10
+      required-referrals: 20
+      cashback-1: 10
+      cashback-2: 20
+      cashback-3: 30

@@ -1,0 +1,23 @@
+spring:
+  mail:
+    host: mail.hosting.reg.ru
+    port: 587
+    password: ${EMAIL_PASSWORD}
+    username: ${EMAIL_USERNAME}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+emails:
+  send-password:
+    template: password.html
+    subject: "Password for Courses Tools"
+  registration:
+    template: registration.html
+    subject: "Welcome!"
+  recovery:
+    template: recovery.html
+    subject: "Password Recovery"

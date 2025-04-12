@@ -1,0 +1,71 @@
+spring:
+  profiles:
+    default: "prod"
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT:5432}/${POSTGRES_DB_NAME}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+
+  data:
+    redis:
+      port: 6379
+      host: ${REDIS_HOST}
+      password: ${REDIS_PASSWORD}
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+
+  config:
+    import:
+      - classpath:configs/partnership.yml
+      - classpath:configs/payment-platforms.yml
+      - classpath:configs/emails.yml
+      - classpath:configs/scheduler.yml
+
+
+server:
+  servlet:
+    context-path: /api
+  port: ${APP_PORT:8080}
+
+oauth2:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID}
+    client-secret: ${GOOGLE_CLIENT_SECRET}
+    redirect-uri: ${GOOGLE_REDIRECT_URI}
+
+resilience4j:
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 1s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        exponential-max-wait-duration: 5s
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+          - com.winworld.coursestools.exception.DataValidationException
+
+
+jwt:
+  secret: ${JWT_SECRET}
+  accessLifeTime: ${JWT_ACCESS_LIFETIME:30m}
+  refreshLifeTime: ${JWT_REFRESH_LIFETIME:30d}
+
+urls:
+  web: ${WEB_CLIENT_URL}
+  web-recovery: ${WEB_RECOVERY_URL}
+
+tokens:
+  password-reset:
+    lifetime: 5m
+
+subscription:
+  price: 2999
+  trial:
+    days: 3

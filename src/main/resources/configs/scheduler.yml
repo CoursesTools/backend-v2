@@ -1,0 +1,5 @@
+scheduler:
+  subscription:
+    expired-subscriptions: "0 * * * * *"
+    trial-expired-subscriptions: "0 * * * * *"
+    grace-period-expired-subscriptions: "0 * * * * *"
