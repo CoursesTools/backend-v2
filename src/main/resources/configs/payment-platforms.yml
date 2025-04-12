@@ -1,0 +1,12 @@
+payment-platforms:
+  stripe:
+    secret: ${STRIPE_SECRET}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+    coupon: ${STRIPE_WEBHOOK_SECRET}
+  crypto:
+    api-key: ${CRYPTO_API_KEY}
+    shop-id: ${CRYPTO_SHOP_ID}
+    secret: ${CRYPTO_SECRET}
+  payeer:
+    shop-id: ${PAYEER_SHOP_ID}
+    secret: ${PAYEER_SECRET}

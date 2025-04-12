@@ -1,0 +1,13 @@
+partnership:
+  discount: 30
+  levels:
+    - rank: 0
+      name: START_5
+      required-referrals: 10
+      cashback-1: 14
+      cashback-2: 7
+    - rank: 1
+      name: START_10
+      required-referrals: 20
+      cashback-1: 10
+      cashback-2: 20
