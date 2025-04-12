@@ -19,6 +19,7 @@ spring:
     hibernate:
       ddl-auto: none
 
+
   config:
     import:
       - classpath:configs/partnership.yml

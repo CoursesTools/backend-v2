@@ -17,4 +17,6 @@ public interface UserAlertRepository extends JpaRepository<UserAlert, Integer>, 
             AND ua.alert.id IN :alertsIds
             """)
     List<UserAlert> findByUserIdAndAlertsIds(int userId, List<Integer> alertsIds);
+
+    void deleteAllByUser_Id(int userId);
 }

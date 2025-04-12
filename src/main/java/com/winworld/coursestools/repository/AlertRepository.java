@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+import java.util.Map;
+
 public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpecificationExecutor<Alert> {
     @Query(value = """
         SELECT
@@ -21,4 +24,39 @@ public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpeci
         WHERE ua.user_id = :userId
     """, nativeQuery = true)
     AlertCategoriesReadDto getUserAlertsCategories(@Param("userId") Integer userId);
+
+    @Query(value = """
+        SELECT DISTINCT a.type
+        FROM alerts a
+        WHERE multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllTypes(boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.asset as assets
+        FROM alerts a
+        WHERE a.type = :type AND a.multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllAssetsByType(String type, boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.broker
+        FROM alerts a
+        WHERE a.type = :type AND a.multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllBrokersByType(String type, boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.tf
+        FROM alerts a
+        WHERE multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllTimeFrames(boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.event
+        FROM alerts a
+        WHERE multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllEvents(boolean isMulti);
 }

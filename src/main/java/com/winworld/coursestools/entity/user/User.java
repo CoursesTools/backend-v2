@@ -68,7 +68,7 @@ public class User extends BaseEntity {
     @OneToOne(mappedBy = "referred", fetch = LAZY)
     private Referral referred;
 
-    @OneToMany(mappedBy = "user")
+    @OneToMany(mappedBy = "user", fetch = LAZY)
     private List<UserSubscription> subscriptions;
 
     @OneToMany(mappedBy = "user", fetch = LAZY)

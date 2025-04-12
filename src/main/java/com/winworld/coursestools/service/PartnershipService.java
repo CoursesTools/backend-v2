@@ -2,6 +2,7 @@ package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.config.props.PartnershipProps;
 import com.winworld.coursestools.dto.PageDto;
+import com.winworld.coursestools.dto.partnership.LevelReadDto;
 import com.winworld.coursestools.dto.partnership.UserPartnerReadDto;
 import com.winworld.coursestools.dto.partnership.UserPartnershipReadDto;
 import com.winworld.coursestools.entity.Referral;
@@ -90,5 +91,17 @@ public class PartnershipService {
 
     public PartnershipProps.Level getCurrentLevel(int level) {
         return partnershipProps.getLevels().get(level);
+    }
+
+    public List<LevelReadDto> getPartnershipLevels() {
+        return partnershipProps.getLevels().stream()
+                .map(level -> LevelReadDto.builder()
+                        .rank(level.getRank())
+                        .name(level.getName())
+                        .requiredReferrals(level.getRequiredReferrals())
+                        .cashback1(level.getCashback(1))
+                        .cashback2(level.getCashback(2))
+                        .build())
+                .toList();
     }
 }

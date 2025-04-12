@@ -1,6 +1,7 @@
 package com.winworld.coursestools.controller;
 
 import com.winworld.coursestools.config.security.UserPrincipal;
+import com.winworld.coursestools.dto.CountDto;
 import com.winworld.coursestools.dto.PageDto;
 import com.winworld.coursestools.dto.alert.AlertCategoriesReadDto;
 import com.winworld.coursestools.dto.alert.AlertFilterDto;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,6 +45,11 @@ public class AlertController {
         return alertService.getAlertSubscriptionCategories(false);
     }
 
+    @GetMapping("/categories/multi")
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategoriesMulti() {
+        return alertService.getAlertSubscriptionCategories(true);
+    }
+
     @GetMapping("/me/categories")
     public AlertCategoriesReadDto getUserAlertsCategories(
             @AuthenticationPrincipal UserPrincipal principal
@@ -60,12 +67,11 @@ public class AlertController {
     }
 
     @PostMapping("/me/subscriptions")
-    public List<Integer> subscribeOnAlerts(
+    public CountDto subscribeOnAlerts(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody AlertSubscribeDto dto
     ) {
-        alertService.subscribeOnAlerts(principal.userId(), dto);
-        return dto.getAlertsIds();
+        return alertService.subscribeOnAlerts(principal.userId(), dto);
     }
 
     @DeleteMapping("/me/subscriptions")
@@ -74,5 +80,12 @@ public class AlertController {
     ) {
         alertService.unSubscribeOnAlerts(principal.userId(), alertsIds);
         return alertsIds;
+    }
+
+    @DeleteMapping("/me/subscriptions/all")
+    public void unsubscribeOnAlerts(
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        alertService.unSubscribeOnAllAlerts(principal.userId());
     }
 }

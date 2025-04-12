@@ -198,7 +198,9 @@ CREATE TABLE alerts
     event       VARCHAR(32) NOT NULL,
     asset       VARCHAR(16) NOT NULL,
     indicator   VARCHAR(32) NOT NULL,
-    multi_alert BOOLEAN     NOT NULL
+    multi_alert BOOLEAN     NOT NULL,
+
+    UNIQUE (asset, event, type, broker, tf, indicator, multi_alert)
 );
 
 CREATE TABLE users_alerts
