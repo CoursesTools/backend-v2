@@ -33,16 +33,15 @@ public class UserCreateListener extends AbstractNotificationListener<UserCreateE
     }
 
 
-    @Async //TODO Сделать свой pool
+    @Async
     @TransactionalEventListener
-    @Transactional(propagation = REQUIRES_NEW)
     public void setUserRegion(UserCreateEvent event) {
         String countryCode = geoLocationService.determineUserRegion(event.getForwardedFor());
         User user = userDataService.getUserById(event.getId());
         user.getProfile().setCountryCode(countryCode);
     }
 
-    @Async //TODO Сделать свой pool
+    @Async
     @TransactionalEventListener
     public void sendNotificationEmail(UserCreateEvent event) {
         sendEmails(event.getEmail(), event);

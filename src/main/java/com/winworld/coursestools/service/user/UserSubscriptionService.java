@@ -5,6 +5,7 @@ import com.winworld.coursestools.dto.user.UsersSubscriptionsFilterDto;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionStatus;
+import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
@@ -24,6 +25,11 @@ public class UserSubscriptionService {
 
     public Optional<UserSubscription> getUserSubBySubType(int userId, int subscriptionTypeId) {
         return userSubscriptionRepository.getUserSubBySubType(subscriptionTypeId, userId);
+    }
+
+    public UserSubscription getUserSubById(int userSubscriptionId) {
+        return userSubscriptionRepository.findById(userSubscriptionId)
+                .orElseThrow(() -> new EntityNotFoundException("User subscription not found with id: " + userSubscriptionId));
     }
 
     public boolean hasEverHadSubscriptionOfType(int userId, int subscriptionTypeId) {

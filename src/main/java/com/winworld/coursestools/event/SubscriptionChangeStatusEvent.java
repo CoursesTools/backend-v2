@@ -9,5 +9,6 @@ import java.time.LocalDateTime;
 public class SubscriptionChangeStatusEvent {
     private String email;
     private String tradingViewUsername;
+    private int userSubscriptionId;
     private SubscriptionEventType eventType;
 }

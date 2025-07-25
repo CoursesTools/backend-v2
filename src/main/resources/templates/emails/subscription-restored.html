@@ -1,13 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>CoursesTools Email</title>
     <style type="text/css">
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&display=swap');
-
         body {
             margin: 0;
         }
@@ -46,6 +44,10 @@
         li {
             margin-left: 0;
         }
+
+        .main {
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&display=swap');
+        }
     </style>
 </head>
 <body>
@@ -82,25 +84,36 @@
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 20px 0 20px; text-align: center">
-                            <h1 style="margin: 0; font-size: 25px; font-family: 'Montserrat', Arial, Helvetica, sans-serif">Password for CoursesTools</h1>
+                        <td style="padding: 20px 0 40px; text-align: center">
+                            <h1 style="margin: 0; font-size: 25px; font-family: 'Montserrat', Arial, Helvetica, sans-serif">
+                                Your Courses Tools subscription is active again!</h1>
                         </td>
                     </tr>
                     <tr>
-                        <td>
-                            <p style="text-align: left; font-size: 16px">
-                                Hello, Partner! <br><br>
-                                This is your password for  Courses Tools account. You can change your password at any time.
-                                <br>
-                                Do not tell this password to anyone. If you did not register at Courses Tools simply ignore this message.
-                                Your password:
+                        <td style="text-align: left; font-size: 16px; padding-bottom: 20px">
+                            <p>
+                                Hello, Partner! <br>
+                                We are glad to inform you that your subscription is restored! <br><br>
+
+                                If the indicators do not work you should do the following <br><br>
                             </p>
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 40px 0 20px">
-                            <p style="text-align: center; font-size: 48px;background-color: #7E86F0;padding: 15px 30px; display: inline;
-font-family: 'Montserrat', Arial, Helvetica, sans-serif; border-radius: 10px" th:text="${password}">password</p>
+                        <td style="padding-bottom: 20px;">
+                            <ul style="text-align: left;padding-left: 15px">
+                                <li> Remove the indicator from the chart.</li>
+                                <li>Reload TradingView (ctrl+f5 / ctrl+R).</li>
+                                <li>Add the indicator again.</li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left; font-size: 16px">
+                            <p>
+                                If there are any issues, please contact our support <br/><br/>
+                                Sincerely yours, Courses Tools.
+                            </p>
                         </td>
                     </tr>
                     <!-- FOOTER -->

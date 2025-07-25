@@ -121,7 +121,6 @@ public class OrderService {
             }
             codeService.useCode(user.getId(), code);
         }
-
         subscriptionService.updateUserSubscriptionAfterPayment(
                 userSubscription,
                 order,

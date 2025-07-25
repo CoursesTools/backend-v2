@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionScheduler {
-    //TODO Сделать постраничный поиск подписок
     private final SubscriptionService subscriptionService;
+
+    //TODO последить за кол-вом пользователей, если будет много, то нужно будет оптимизировать
 
 //    @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
     public void deactivateExpiredSubscriptions() {

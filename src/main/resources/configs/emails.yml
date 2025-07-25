@@ -24,3 +24,24 @@ emails:
   recovery:
     template: recovery.html
     subject: "Password Recovery"
+  trial-start:
+    template: trial-start.html
+    subject: "Trial period started"
+  subscription-expired:
+    template: subscription-expired.html
+    subject: "Your subscription is suspended"
+  trial-end:
+    template: trial-end.html
+    subject: "Your trial period is over"
+  grace-period-end:
+    template: grace-period-end.html
+    subject: "Your subscription is cancelled"
+  subscription-restored:
+    template: subscription-restored.html
+    subject: "Your Courses Tools subscription is restored"
+  first-payment:
+    template: first-payment.html
+    subject: "Welcome onboard, Partner!"
+  payment-retrieve:
+    template: payment-retrieve.html
+    subject: "Thank you, we’ve received your payment."

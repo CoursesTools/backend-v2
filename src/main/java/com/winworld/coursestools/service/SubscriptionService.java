@@ -30,7 +30,13 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
-import static com.winworld.coursestools.enums.SubscriptionEventType.TRIAL;
+import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
+import static com.winworld.coursestools.enums.SubscriptionEventType.EXTENDED;
+import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
+import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_START;
+import static com.winworld.coursestools.enums.SubscriptionEventType.RESTORED;
+import static com.winworld.coursestools.enums.SubscriptionEventType.TRIAL_CREATED;
+import static com.winworld.coursestools.enums.SubscriptionEventType.TRIAL_ENDED;
 import static com.winworld.coursestools.enums.SubscriptionStatus.GRACE_PERIOD;
 import static com.winworld.coursestools.enums.SubscriptionStatus.GRANTED;
 import static com.winworld.coursestools.enums.SubscriptionStatus.PENDING;
@@ -89,8 +95,9 @@ public class SubscriptionService {
                 .build();
         user.addSubscription(userSubscription);
 
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL));
-        return userMapper.toDto(userSubscriptionService.save(userSubscription));
+        var savedUserSubscription = userSubscriptionService.save(userSubscription);
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL_CREATED, savedUserSubscription));
+        return userMapper.toDto(savedUserSubscription);
 
     }
 
@@ -105,8 +112,9 @@ public class SubscriptionService {
             if (referred != null) {
                 referred.setActive(false);
             }
+            //TODO подумать на stripe отменой
             log.info("User {} subscription expired", user.getId());
-            //TODO Отправить письмецо
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
             //TODO Сделать напоминание о 3 днях, 7 и т.д.
         });
     }
@@ -117,7 +125,8 @@ public class SubscriptionService {
                 .findAllWithExpiredTrialSubscription();
         usersSubscriptions.forEach(userSubscription -> {
             userSubscription.setStatus(TERMINATED);
-            //TODO Ивент о деактиваиции подписки
+            log.info("User subscription {} trial expired", userSubscription.getId());
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), TRIAL_ENDED, userSubscription));
         });
     }
 
@@ -129,7 +138,7 @@ public class SubscriptionService {
             userSubscription.setStatus(TERMINATED);
             User user = userSubscription.getUser();
             log.info("User {} subscription grace period expired", user.getId());
-            //TODO Отправить письмецо
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), GRACE_PERIOD_END, userSubscription));
         });
     }
 
@@ -141,11 +150,13 @@ public class SubscriptionService {
     ) {
         if (userSubscription == null || userSubscription.getIsTrial()) {
             createNewSubscription(userSubscription, order, user, paymentProviderData);
-            //TODO Сделать публикацию события
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), CREATED, userSubscription));
         } else if (userSubscription.getStatus().equals(GRACE_PERIOD)) {
             updateGracePeriodSubscription(userSubscription, order, paymentProviderData);
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), RESTORED, userSubscription));
         } else {
             extendExistingSubscription(userSubscription, order, paymentProviderData);
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), EXTENDED, userSubscription));
         }
     }
 

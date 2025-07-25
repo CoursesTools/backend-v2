@@ -67,6 +67,11 @@ jwt:
 urls:
   web: ${WEB_CLIENT_URL}
   web-recovery: ${WEB_CLIENT_URL}${WEB_RECOVERY_URL}
+  withdrawal: ${WITHDRAWAL_URL}
+  activating-bot: ${ACTIVATING_BOT_URL}
+
+secrets:
+  withdrawal-secret: ${WITHDRAWAL_SECRET}
 
 tokens:
   password-reset:

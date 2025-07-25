@@ -42,6 +42,6 @@ public class GeoLocationService {
                 ipAddress,
                 throwable
         );
-        return null;
+        throw new ExternalServiceException("Error while determining user region for IP " + ipAddress);
     }
 }

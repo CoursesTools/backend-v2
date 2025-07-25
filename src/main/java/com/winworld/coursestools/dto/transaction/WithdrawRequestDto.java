@@ -1,16 +1,17 @@
 package com.winworld.coursestools.dto.transaction;
 
 import com.winworld.coursestools.enums.Currency;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class TransactionsAmountDto {
+public class WithdrawRequestDto {
+    private String email;
+    private String wallet;
+    //In Usd
     private BigDecimal amount;
+    private String secret;
+    private int transactionId;
     private Currency currency;
 }
