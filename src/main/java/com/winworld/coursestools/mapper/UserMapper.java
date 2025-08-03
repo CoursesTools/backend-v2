@@ -32,15 +32,17 @@ public interface UserMapper {
     @Mapping(target = "planId", source = "plan.id")
     UserSubscriptionReadDto toDto(UserSubscription userSubscription);
 
-    @Mapping(target = "isReferralBonusUsed", source = "referred.bonusUsed", defaultValue = "false")
-    @Mapping(target = "discordId", source = "profile.discordId")
+    @Mapping(target = "isReferralBonusUsed", source = "referred.bonusUsed")
+    @Mapping(target = "discordId", source = "social.discordId")
+    @Mapping(target = "telegramId", source = "social.telegramId")
+    @Mapping(target = "tradingViewName", source = "social.tradingViewName")
     @Mapping(target = "balance", source = "finance.balance")
     @Mapping(target = "isActive", source = "referred.active", defaultValue = "false")
     UserReadDto toDto(User user);
 
     @BeanMapping(nullValuePropertyMappingStrategy = IGNORE)
-    @Mapping(target = "profile.discordId", source = "dto.discordId")
     @Mapping(target = "partnerCode.code", source = "dto.partnerCode")
+    @Mapping(target = "email", ignore = true)
     @Mapping(target = "partnership.termsAccepted", source = "dto.termsAccepted")
     void updateUserFromDto(UpdateUserDto dto, @MappingTarget User user);
 

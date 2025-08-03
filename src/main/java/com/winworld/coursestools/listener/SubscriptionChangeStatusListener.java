@@ -5,11 +5,14 @@ import com.winworld.coursestools.enums.SubscriptionEventType;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.event.SubscriptionChangeStatusEvent;
 import com.winworld.coursestools.messaging.MessageBuilder;
-import com.winworld.coursestools.service.ActivatingSubscriptionService;
+import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.EmailService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
@@ -35,8 +38,9 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         this.userSubscriptionService = userSubscriptionService;
     }
 
-    @TransactionalEventListener
+    @EventListener
     @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void activateUserSubscription(SubscriptionChangeStatusEvent event) {
         if (!EVENTS_FOR_ACTIVATE.contains(event.getEventType())) {
             return;

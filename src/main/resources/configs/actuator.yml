@@ -1,0 +1,27 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus, metrics, info
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    enable:
+      jvm: true
+      process: true
+      system: true
+      disk: true
+      files: true
+  server:
+    base-path: /
+    port: ${ACTUATOR_PORT:8081}
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enabled: true

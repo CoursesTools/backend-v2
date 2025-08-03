@@ -1,8 +1,7 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.order.CreateOrderDto;
-import com.winworld.coursestools.dto.order.ProcessOrderDto;
-import com.winworld.coursestools.dto.order.ReadOrderDto;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.entity.Code;
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.Referral;
@@ -10,7 +9,6 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.OrderStatus;
-import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.OrderMapper;
@@ -19,11 +17,13 @@ import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.service.user.UserTransactionService;
 import com.winworld.coursestools.validation.validator.OrderValidator;
+import com.winworld.coursestools.validation.validator.payment.PaymentValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -33,28 +33,22 @@ public class OrderService {
     private final OrderValidator orderValidator;
     private final CodeService codeService;
     private final SubscriptionService subscriptionService;
-    private final OrderMapper orderMapper;
     private final UserTransactionService userTransactionService;
     private final PricingService pricingService;
     private final UserSubscriptionService userSubscriptionService;
     private final ReferralService referralService;
     private final PartnershipService partnershipService;
+    private final List<PaymentValidator> paymentValidators;
 
-    public ReadOrderDto createOrder(int userId, CreateOrderDto createDto) {
+    public Order createOrder(int userId, CreateOrderDto createDto) {
         User user = userDataService.getUserById(userId);
         SubscriptionPlan plan = subscriptionService.getSubscriptionPlan(createDto.getPlanId());
         UserSubscription userSubscription = userSubscriptionService
-                .getUserSubBySubType(userId, plan.getSubscriptionType().getId())
+                .getUserSubBySubTypeIdNotTerminated(userId, plan.getSubscriptionType().getId())
                 .orElse(null);
         orderValidator.validateCreateOrder(user, createDto, userSubscription);
 
         BigDecimal subscriptionPrice = plan.getPrice();
-
-        //TODO сделать это потом как-нибудь по лучше
-        if (userSubscription != null && userSubscription.getPaymentMethod().equals(createDto.getPaymentMethod())
-                && createDto.getPaymentMethod().equals(PaymentMethod.STRIPE)) {
-            throw new ConflictException("You already have an active subscription with Stripe payment method.");
-        }
 
         if (userSubscription != null && !userSubscription.getIsTrial()
                 && userSubscription.getPlan().equals(plan)) {
@@ -63,26 +57,23 @@ public class OrderService {
 
         BigDecimal totalPrice;
         Code code = null;
+        Referral referrer = user.getReferred();
 
         if (createDto.getCode() != null) {
-            Referral referrer = user.getReferred();
             code = codeService.getCodeByValue(createDto.getCode());
             totalPrice = pricingService.calculatePrice(
                     code, plan.getDiscountMultiplier(), subscriptionPrice
             );
-            if (referrer != null && !referrer.isBonusUsed()) {
-                Code partnerCode = referrer.getReferrer().getPartnerCode();
-                BigDecimal priceWithReferrerCode = pricingService.calculatePrice(
-                        partnerCode,
-                        plan.getDiscountMultiplier(),
-                        subscriptionPrice
-                );
-                if (totalPrice.compareTo(priceWithReferrerCode) >= 0) {
-                    totalPrice = priceWithReferrerCode;
-                    code = partnerCode;
-                }
-            }
-        } else {
+        }
+        else if (referrer != null && !referrer.isBonusUsed()) {
+            code = referrer.getReferrer().getPartnerCode();
+            totalPrice = pricingService.calculatePrice(
+                    code,
+                    plan.getDiscountMultiplier(),
+                    subscriptionPrice
+            );
+        }
+        else {
             totalPrice = subscriptionPrice;
         }
 
@@ -96,11 +87,15 @@ public class OrderService {
                 .status(OrderStatus.PENDING)
                 .build();
 
-        return orderMapper.toDto(orderRepository.save(order));
+        paymentValidators.stream()
+                .filter(validator -> validator.getSupportedPaymentMethod().equals(order.getPaymentMethod()))
+                .forEach(validator -> validator.validate(user, order, userSubscription));
+
+        return orderRepository.save(order);
     }
 
     @Transactional
-    public void processSuccessfulPayment(ProcessOrderDto dto) {
+    public void processSuccessfulPayment(ProcessPaymentDto dto) {
         Order order = getOrderById(dto.getOrderId());
         if (order.getStatus().equals(OrderStatus.PAID)) {
             throw new ConflictException("Order already paid");
@@ -110,7 +105,7 @@ public class OrderService {
 
         User user = order.getUser();
         UserSubscription userSubscription = userSubscriptionService
-                .getUserSubBySubType(user.getId(), order.getPlan().getSubscriptionType().getId())
+                .getUserSubBySubTypeIdNotTerminated(user.getId(), order.getPlan().getSubscriptionType().getId())
                 .orElse(null);
 
         if (code != null) {

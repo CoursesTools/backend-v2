@@ -41,15 +41,15 @@ public interface ReferralRepository extends JpaRepository<Referral, Long> {
                 u.email as email,
                 u.created_at as createdAt,
                 r.updated_at as activeUpdatedAt,
-                up.discord_id as discordId,
+                us.discord_id as discordId,
                 (SELECT COUNT(*) FROM referrals r2 WHERE r2.referrer_id = r.referred_id) as referralsCount,
                 (SELECT COUNT(*) FROM referrals r2 WHERE r2.referrer_id = r.referred_id AND r2.is_active = true) as activeReferralsCount
             FROM referrals r
                 LEFT JOIN users u ON u.id = r.referred_id
-                JOIN user_profile up ON up.user_id = u.id
+                JOIN user_socials us ON us.user_id = u.id
                 LEFT JOIN referrals_earnings re ON re.referral_id = r.id
             WHERE r.referrer_id = :userId
-            GROUP BY r.id, u.id, up.user_id
+            GROUP BY r.id, u.id, us.user_id
     ) sub
     """, countQuery = """
         SELECT COUNT(*)

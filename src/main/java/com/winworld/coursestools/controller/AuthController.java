@@ -8,6 +8,7 @@ import com.winworld.coursestools.dto.auth.AuthTokensDto;
 import com.winworld.coursestools.dto.recovery.RecoveryDto;
 import com.winworld.coursestools.facade.AuthFacade;
 import com.winworld.coursestools.util.EnvironmentUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,10 +42,11 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<AuthTokensDto> signup(
             @RequestBody @Valid BasicAuthSignUpDto dto,
-            @RequestHeader(value = "x-forwarded-for", required = false)
-            String forwardedFor
+            @RequestHeader(value = "X-Forwarded-For", required = false)
+            String forwardedFor,
+            HttpServletRequest request
     ) {
-        return createAuthResponse(authFacade.signup(dto, forwardedFor));
+        return createAuthResponse(authFacade.signup(dto, forwardedFor != null ? forwardedFor : request.getRemoteAddr()));
     }
 
     @PostMapping("/signup/google")

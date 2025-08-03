@@ -1,18 +1,24 @@
 package com.winworld.coursestools.controller;
 
 import com.winworld.coursestools.config.security.UserPrincipal;
+import com.winworld.coursestools.dto.RedirectDto;
 import com.winworld.coursestools.dto.payment.BalanceRetrieveDto;
 import com.winworld.coursestools.dto.payment.crypto.CryptoRetrieveDto;
 import com.winworld.coursestools.facade.PaymentFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.view.RedirectView;
 
 import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED_VALUE;
 
@@ -45,5 +51,10 @@ public class PaymentController {
         paymentFacade.retrieveBalancePayment(
                 new BalanceRetrieveDto(orderId, userPrincipal.userId())
         );
+    }
+
+    @GetMapping("/stripe/panel")
+    private RedirectDto getStripePanel(@AuthenticationPrincipal UserPrincipal principal) {
+        return new RedirectDto(paymentFacade.getStripePanel(principal.userId()));
     }
 }

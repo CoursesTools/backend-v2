@@ -1,5 +1,7 @@
 package com.winworld.coursestools.service.payment.impl;
 
+import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.payeer.PayeerCreatePaymentDto;
 import com.winworld.coursestools.dto.payment.payeer.PayeerRetrieveDto;
 import com.winworld.coursestools.entity.Order;
@@ -34,26 +36,26 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
     private String shopId;
 
 
-    public PayeerPaymentService(OrderService orderService, RestTemplate restTemplate) {
-        super(orderService);
+    public PayeerPaymentService(RestTemplate restTemplate) {
+        super();
         this.restTemplate = restTemplate;
         addContentTypeHeaderInterceptor();
     }
 
     @Override
-    public String createPaymentLink(int orderId) {
-        Order order = orderService.getOrderById(orderId);
-        String amountInUsd = getPriceInUsd(order.getTotalPrice()).toString();
+    public String createPaymentLink(CreatePaymentLinkDto dto) {
+        String amountInUsd = getPriceInUsd(dto.getTotalPrice()).toString();
 
-        var dto = PayeerCreatePaymentDto.builder()
+        var createPaymentDto = PayeerCreatePaymentDto.builder()
                 .amount(amountInUsd)
-                .orderId(order.getId().toString())
+                .orderId(dto.getOrderId().toString())
                 .description(ENCODED_DESCRIPTION)
                 .currency(USD)
                 .merchantId(shopId)
                 .build();
-        dto.setSignature(generateSign(dto));
+        createPaymentDto.setSignature(generateSign(createPaymentDto));
         return null;
+        //TODO добавить обработку платежа
     }
 
     @Override
@@ -62,8 +64,8 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
     }
 
     @Override
-    public void processPayment(PayeerRetrieveDto paymentRequest) {
-
+    public ProcessPaymentDto processPayment(PayeerRetrieveDto paymentRequest) {
+        return null;
     }
 
     private void addContentTypeHeaderInterceptor() {

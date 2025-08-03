@@ -36,9 +36,6 @@ import static jakarta.persistence.FetchType.LAZY;
 @AllArgsConstructor
 public class User extends BaseEntity {
 
-    @Column(name = "trading_view_name", length = 32, nullable = false, unique = true)
-    private String tradingViewName;
-
     @Column(name = "email", length = 64, nullable = false, unique = true)
     private String email;
 
@@ -50,11 +47,11 @@ public class User extends BaseEntity {
     @Column(name = "password", length = 64, nullable = false)
     private String password;
 
-    @Column(name = "telegram_id", length = 9, unique = true)
-    private String telegramId;
-
     @OneToOne(mappedBy = "user", optional = false, fetch = LAZY, cascade = CascadeType.ALL)
     private UserProfile profile;
+
+    @OneToOne(mappedBy = "user", optional = false, fetch = LAZY, cascade = CascadeType.ALL)
+    private UserSocial social;
 
     @OneToOne(mappedBy = "user", optional = false, fetch = LAZY, cascade = CascadeType.ALL)
     private UserPartnership partnership;

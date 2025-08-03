@@ -12,7 +12,7 @@ import org.thymeleaf.context.Context;
 public class PaymentRetrieveMessageBuilder extends MessageBuilder<SubscriptionChangeStatusEvent> {
     public PaymentRetrieveMessageBuilder(
             TemplateEngine templateEngine,
-            @Value("${emails.payment-retrieve.subject}")
+            @Value("${emails.payment-retrieve.template}")
             String templateName,
             @Value("${emails.payment-retrieve.subject}")
             String subject

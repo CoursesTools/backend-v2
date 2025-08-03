@@ -2,7 +2,7 @@ payment-platforms:
   stripe:
     secret: ${STRIPE_SECRET}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET}
-    coupon: ${STRIPE_WEBHOOK_SECRET}
+    coupon: ${STRIPE_COUPON}
   crypto:
     api-key: ${CRYPTO_API_KEY}
     shop-id: ${CRYPTO_SHOP_ID}

@@ -34,20 +34,27 @@ CREATE INDEX idx_subscription_plans_type_id ON subscription_plans (subscription_
 CREATE TABLE users
 (
     id                INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    trading_view_name VARCHAR(32) UNIQUE NOT NULL,
     email             VARCHAR(64) UNIQUE NOT NULL,
     role              VARCHAR(16)        NOT NULL,
     password          VARCHAR(64)        NOT NULL,
-    telegram_id       CHAR(10) UNIQUE,
     created_at        timestamptz DEFAULT CURRENT_TIMESTAMP,
     updated_at        timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_socials
+(
+    user_id      INT PRIMARY KEY,
+    trading_view_name   VARCHAR(32) UNIQUE NOT NULL,
+    telegram_id         CHAR(9) UNIQUE,
+    discord_id          VARCHAR(32) UNIQUE,
+    created_at          timestamptz DEFAULT CURRENT_TIMESTAMP,
+    updated_at          timestamptz DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE user_profile
 (
     user_id      INT PRIMARY KEY,
     country_code CHAR(2),
-    discord_id   VARCHAR(32) UNIQUE,
     created_at   timestamptz DEFAULT CURRENT_TIMESTAMP,
     updated_at   timestamptz DEFAULT CURRENT_TIMESTAMP,
 

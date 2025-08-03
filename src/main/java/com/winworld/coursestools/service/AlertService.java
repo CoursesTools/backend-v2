@@ -11,11 +11,13 @@ import com.winworld.coursestools.entity.Alert;
 import com.winworld.coursestools.entity.base.BaseEntity;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserAlert;
+import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.mapper.AlertMapper;
 import com.winworld.coursestools.repository.AlertRepository;
 import com.winworld.coursestools.repository.user.UserAlertRepository;
 import com.winworld.coursestools.service.user.UserDataService;
+import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.specification.alert.AlertSpecification;
 import com.winworld.coursestools.specification.alert.UserAlertSpecification;
 import lombok.RequiredArgsConstructor;
@@ -38,8 +40,11 @@ public class AlertService {
     private final UserAlertRepository userAlertRepository;
     private final AlertSpecification alertSpecification;
     private final UserAlertSpecification userAlertSpecification;
+    private final UserSubscriptionService userSubscriptionService;
+    private final SubscriptionService subscriptionService;
 
-    public PageDto<AlertReadDto> getAlertsByFilter(AlertFilterDto filterDto, Pageable pageable) {
+    public PageDto<AlertReadDto> getAlertsByFilter(int userId, AlertFilterDto filterDto, Pageable pageable) {
+        checkUserSubscription(userId);
         Specification<Alert> specification = alertSpecification.from(filterDto);
         return PageDto.of(
                 alertRepository
@@ -49,6 +54,7 @@ public class AlertService {
     }
 
     public PageDto<AlertReadDto> getUserAlertsByFilter(int userId, AlertFilterDto filterDto, Pageable pageable) {
+        checkUserSubscription(userId);
         Specification<UserAlert> specification = userAlertSpecification.from(filterDto)
                 .and((root, query, cb) ->
                         cb.equal(root.get(UserAlert.USER).get(User.ID), userId)
@@ -63,6 +69,7 @@ public class AlertService {
 
     @Transactional
     public CountDto subscribeOnAlerts(int userId, AlertSubscribeDto dto) {
+        checkUserSubscription(userId);
         User user = userDataService.getUserById(userId);
         Specification<Alert> specification = alertSpecification.from(dto);
         List<Alert> alerts = alertRepository.findAll(specification);
@@ -105,6 +112,7 @@ public class AlertService {
 
     @Transactional
     public void unSubscribeOnAlerts(int userId, List<Integer> alertsIds) {
+        checkUserSubscription(userId);
         List<UserAlert> userAlerts = userAlertRepository.findByUserIdAndAlertsIds(userId, alertsIds);
         if (userAlerts.size() != alertsIds.size()) {
             List<Integer> notSubscribedAlerts = alertsIds.stream()
@@ -118,14 +126,17 @@ public class AlertService {
 
     @Transactional
     public void unSubscribeOnAllAlerts(int userId) {
+        checkUserSubscription(userId);
         userAlertRepository.deleteAllByUser_Id(userId);
     }
 
     public AlertCategoriesReadDto getUserAlertsCategories(int userId) {
+        checkUserSubscription(userId);
         return alertRepository.getUserAlertsCategories(userId);
     }
 
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(boolean isMulti) {
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti) {
+        checkUserSubscription(userId);
         var types = alertRepository.getAllTypes(isMulti);
         AlertSubscriptionCategoriesDto categories = new AlertSubscriptionCategoriesDto();
         types.forEach(type -> {
@@ -138,5 +149,11 @@ public class AlertService {
         categories.setEvents(alertRepository.getAllEvents(isMulti));
         categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
         return categories;
+    }
+
+    private void checkUserSubscription(int userId) {
+        var subscription = subscriptionService.getSubscription(SubscriptionName.COURSESTOOLSPRO);
+        userSubscriptionService.getUserSubBySubTypeIdNotTerminated(userId, subscription.getId())
+                .orElseThrow(() -> new ConflictException("You must have a subscription to use this feature"));
     }
 }

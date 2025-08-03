@@ -14,6 +14,8 @@ public class PublicUrlsHolder {
         PUBLIC_URL_PATTERNS = new OrRequestMatcher(
                 requestMatcher("/v1/authorization/**"),
                 requestMatcher("/v1/partnerships/levels", HttpMethod.GET),
+                requestMatcher("/actuator/**", HttpMethod.GET),
+                requestMatcher("/v1/users/socials/telegram/bind", HttpMethod.PATCH),
                 requestMatcher("/v1/payments/crypto"),
                 requestMatcher("/v1/payments/stripe"),
                 requestMatcher("/v1/payments/payeer"),

@@ -37,6 +37,8 @@ val flywayVersion = "11.5.0"
 val commonsCodecVersion = "1.16.0"
 val springDocWebMvcUiVersion = "2.1.0"
 val jacksonNullableVersion = "0.2.6"
+val wireMockVersion = "3.12.1"
+val testContainersRedisVersion = "2.2.2"
 dependencies {
     /**
     Spring starters
@@ -49,11 +51,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     /**
     Security
      */
     implementation("io.jsonwebtoken:jjwt-api:$jjwtVersion")
+    testImplementation("org.testcontainers:junit-jupiter")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:$jjwtVersion")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:$jjwtVersion")
     /**
@@ -79,6 +83,11 @@ dependencies {
     External
      */
     implementation("com.stripe:stripe-java:$stripeJava")
+
+    /**
+    Observability
+     */
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     /**
     Test

@@ -1,5 +1,6 @@
 package com.winworld.coursestools.service.user;
 
+import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserFinance;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import lombok.RequiredArgsConstructor;
@@ -21,5 +22,9 @@ public class UserFinanceService {
             throw new ConflictException("User " + userId + " balance is lower than current balance");
         }
         userFinance.decreaseBalance(amount);
+    }
+
+    public boolean hasEnoughBalance(User user, BigDecimal amount) {
+        return user.getFinance().getBalance().compareTo(amount) >= 0;
     }
 }

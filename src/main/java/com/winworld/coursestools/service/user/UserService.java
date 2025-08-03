@@ -1,8 +1,8 @@
 package com.winworld.coursestools.service.user;
 
+import com.winworld.coursestools.dto.user.UpdateUserDto;
 import com.winworld.coursestools.dto.user.UpdateUserEmailDto;
 import com.winworld.coursestools.dto.user.UpdateUserPasswordDto;
-import com.winworld.coursestools.dto.user.UpdateUserDto;
 import com.winworld.coursestools.dto.user.UserReadDto;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.mapper.UserMapper;
@@ -53,8 +53,7 @@ public class UserService {
         if (dto.getEmailCode() != null) {
             tokenService.deleteEmailToken(userId);
             user.setEmail(dto.getEmail());
-        }
-        else {
+        } else {
             String emailCode = tokenService.saveAndGetEmailToken(userId);
             emailService.send(user.getEmail(), sendEmailCodeMessageBuilder.buildMessage(emailCode));
         }

@@ -8,6 +8,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED;
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 @Data
@@ -24,7 +25,7 @@ public class UserReadDto {
     private LocalDateTime createdAt;
     @Schema(requiredMode = REQUIRED)
     private Boolean isActive;
-    @Schema(requiredMode = REQUIRED)
+    @Schema(requiredMode = NOT_REQUIRED)
     private Boolean isReferralBonusUsed;
     @Schema(requiredMode = REQUIRED)
     private String telegramId;

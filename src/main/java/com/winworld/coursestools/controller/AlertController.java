@@ -35,19 +35,20 @@ public class AlertController {
     @GetMapping
     public PageDto<AlertReadDto> getAlertsByFilter(
             @ParameterObject AlertFilterDto alertFilterDto,
-            @ParameterObject Pageable pageable
+            @ParameterObject Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal principal
     ) {
-        return alertService.getAlertsByFilter(alertFilterDto, pageable);
+        return alertService.getAlertsByFilter(principal.userId(), alertFilterDto, pageable);
     }
 
     @GetMapping("/categories")
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories() {
-        return alertService.getAlertSubscriptionCategories(false);
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(@AuthenticationPrincipal UserPrincipal principal) {
+        return alertService.getAlertSubscriptionCategories(principal.userId(), false);
     }
 
     @GetMapping("/categories/multi")
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategoriesMulti() {
-        return alertService.getAlertSubscriptionCategories(true);
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategoriesMulti(@AuthenticationPrincipal UserPrincipal principal) {
+        return alertService.getAlertSubscriptionCategories(principal.userId(), true);
     }
 
     @GetMapping("/me/categories")

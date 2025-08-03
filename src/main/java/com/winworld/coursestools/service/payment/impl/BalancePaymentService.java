@@ -1,7 +1,8 @@
 package com.winworld.coursestools.service.payment.impl;
 
-import com.winworld.coursestools.dto.order.ProcessOrderDto;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.BalanceRetrieveDto;
+import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.PaymentMethod;
@@ -17,18 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class BalancePaymentService extends PaymentService<BalanceRetrieveDto> {
     private final UserFinanceService userFinanceService;
+    private final OrderService orderService;
 
-    public BalancePaymentService(OrderService orderService, UserFinanceService userFinanceService) {
-        super(orderService);
+    public BalancePaymentService(OrderService orderService, UserFinanceService userFinanceService, OrderService orderService1) {
+        super();
         this.userFinanceService = userFinanceService;
+        this.orderService = orderService;
     }
 
     @Override
-    public String createPaymentLink(int orderId) {
-        Order order = orderService.getOrderById(orderId);
-        if (order.getUser().getFinance().getBalance().compareTo(order.getTotalPrice()) < 0) {
-            throw new PaymentProcessingException("Balance is lower than order total price");
-        }
+    public String createPaymentLink(CreatePaymentLinkDto dto) {
+        // TODO Возвращать ссылку на /payments/balance а там перенаправлять
         return null;
     }
 
@@ -39,10 +39,9 @@ public class BalancePaymentService extends PaymentService<BalanceRetrieveDto> {
 
     @Override
     @Transactional
-    public void processPayment(BalanceRetrieveDto paymentRequest) {
+    public ProcessPaymentDto processPayment(BalanceRetrieveDto paymentRequest) {
         Order order = orderService.getOrderById(paymentRequest.getOrderId());
         validatePayment(order.getUser(), paymentRequest.getUserId());
-        verifyPaymentMethodCompatibility(paymentRequest.getOrderId());
 
         userFinanceService.decreaseBalance(paymentRequest.getUserId(), order.getTotalPrice());
         log.info("User {} paid {} for order {} using balance",
@@ -51,10 +50,9 @@ public class BalancePaymentService extends PaymentService<BalanceRetrieveDto> {
                 paymentRequest.getOrderId()
         );
 
-        ProcessOrderDto dto = ProcessOrderDto.builder()
+        return ProcessPaymentDto.builder()
                 .orderId(paymentRequest.getOrderId())
                 .build();
-        orderService.processSuccessfulPayment(dto);
     }
 
     private void validatePayment(User user, int userID) {

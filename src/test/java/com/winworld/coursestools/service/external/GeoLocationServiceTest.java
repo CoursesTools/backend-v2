@@ -1,8 +1,7 @@
-package com.winworld.coursestools.service;
+package com.winworld.coursestools.service.external;
 
 import com.winworld.coursestools.dto.external.GeoLocationReadDto;
 import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
-import com.winworld.coursestools.service.external.GeoLocationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

@@ -31,11 +31,11 @@ public class PartnershipService {
     @Transactional
     public void recalculateLevelAfterNewReferral(User referrer) {
         Integer rank = referrer.getPartnership().getLevel();
-        int referralsCount = referralService.countReferrals(referrer.getId(), true);
-
         if (rank.equals(partnershipProps.getLevels().size() - 1)) {
             return;
         }
+        int referralsCount = referralService.countReferrals(referrer.getId(), true);
+
         Integer requiredReferrals = partnershipProps.getLevels().get(rank).getRequiredReferrals();
         if (referralsCount >= requiredReferrals) {
             referrer.getPartnership().levelUp();
@@ -47,13 +47,13 @@ public class PartnershipService {
         var nextLevel = getNextPartnershipLevel(user.getPartnership().getLevel());
         var currentLevel = getCurrentLevel(user.getPartnership().getLevel());
         return UserPartnershipReadDto.builder()
-                .nextLevelName(nextLevel.getName())
+                .nextLevelName(nextLevel != null ? nextLevel.getName() : null)
                 .requiredReferralsForNextLevel(currentLevel.getRequiredReferrals())
                 .activeReferralsCount(referralService.countReferrals(userId, true))
                 .inactiveReferralsCount(referralService.countReferrals(userId, false))
                 .currentLevelName(currentLevel.getName())
                 .curatorDiscord(user.getReferred() != null ?
-                        user.getReferred().getReferrer().getProfile().getDiscordId() : null)
+                        user.getReferred().getReferrer().getSocial().getDiscordId() : null)
                 .levelEarnings(referralService.calculateLevelEarnings(userId))
                 .partnerCode(user.getPartnerCode().getCode())
                 .termsAccepted(user.getPartnership().getTermsAccepted())

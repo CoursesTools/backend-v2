@@ -6,6 +6,7 @@ import com.winworld.coursestools.messaging.MessageBuilder;
 import com.winworld.coursestools.service.EmailService;
 import com.winworld.coursestools.service.external.GeoLocationService;
 import com.winworld.coursestools.service.user.UserDataService;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -34,7 +35,8 @@ public class UserCreateListener extends AbstractNotificationListener<UserCreateE
 
 
     @Async
-    @TransactionalEventListener
+    @Transactional(propagation = REQUIRES_NEW)
+    @EventListener
     public void setUserRegion(UserCreateEvent event) {
         String countryCode = geoLocationService.determineUserRegion(event.getForwardedFor());
         User user = userDataService.getUserById(event.getId());
@@ -42,7 +44,7 @@ public class UserCreateListener extends AbstractNotificationListener<UserCreateE
     }
 
     @Async
-    @TransactionalEventListener
+    @EventListener
     public void sendNotificationEmail(UserCreateEvent event) {
         sendEmails(event.getEmail(), event);
     }

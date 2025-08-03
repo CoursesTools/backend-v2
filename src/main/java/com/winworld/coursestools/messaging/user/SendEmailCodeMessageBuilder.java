@@ -10,9 +10,9 @@ import org.thymeleaf.context.Context;
 public class SendEmailCodeMessageBuilder extends MessageBuilder<String> {
     public SendEmailCodeMessageBuilder(
             TemplateEngine templateEngine,
-            @Value("${emails.send-email-code.template}")
+            @Value("${emails.change-email.template}")
             String templateName,
-            @Value("${emails.send-email-code.subject}")
+            @Value("${emails.change-email.subject}")
             String subject
     ) {
         super(templateEngine, templateName, subject);
@@ -20,6 +20,6 @@ public class SendEmailCodeMessageBuilder extends MessageBuilder<String> {
 
     @Override
     protected void setVariables(Context context, String code) {
-        context.setVariable("password", code);
+        context.setVariable("code", code);
     }
 }

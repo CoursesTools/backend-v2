@@ -9,7 +9,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
@@ -19,6 +21,8 @@ import static jakarta.persistence.FetchType.LAZY;
 @Table(name = "subscription_types")
 @Getter
 @Setter
+@SuperBuilder
+@NoArgsConstructor
 public class SubscriptionType extends BaseEntity {
     public static final String NAME = "name";
 

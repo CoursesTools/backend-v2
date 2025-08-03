@@ -4,10 +4,12 @@ import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UsersSubscriptionsFilterDto;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
+import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,8 +25,8 @@ public class UserSubscriptionService {
     private final UserMapper userMapper;
     private final UserSubscriptionSpecification userSubscriptionSpecification;
 
-    public Optional<UserSubscription> getUserSubBySubType(int userId, int subscriptionTypeId) {
-        return userSubscriptionRepository.getUserSubBySubType(subscriptionTypeId, userId);
+    public Optional<UserSubscription> getUserSubBySubTypeIdNotTerminated(int userId, int subscriptionTypeId) {
+        return userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId);
     }
 
     public UserSubscription getUserSubById(int userSubscriptionId) {

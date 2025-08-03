@@ -1,8 +1,10 @@
 package com.winworld.coursestools.service.user;
 
 import com.winworld.coursestools.entity.user.User;
+import com.winworld.coursestools.entity.user.UserSocial;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.repository.user.UserRepository;
+import com.winworld.coursestools.repository.user.UserSocialRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,7 @@ public class UserDataService {
     private static final String PARTNER_CODE_NOT_FOUND = "User with partner code %s not found";
 
     private final UserRepository userRepository;
+    private final UserSocialRepository userSocialRepository;
 
     public User getUserByEmail(String email) {
         return userRepository.findUserByEmail(email)
@@ -37,11 +40,11 @@ public class UserDataService {
     }
 
     public boolean existsByTelegramId(String telegramId) {
-        return userRepository.existsByTelegramId(telegramId);
+        return userSocialRepository.existsByTelegramId(telegramId);
     }
 
     public boolean existsByDiscordId(String discordId) {
-        return userRepository.existsByProfileDiscordId(discordId);
+        return userSocialRepository.existsByDiscordId(discordId);
     }
 
     public boolean existsByEmail(String email) {
@@ -49,7 +52,7 @@ public class UserDataService {
     }
 
     public boolean existsByTradingViewName(String tradingViewName) {
-        return userRepository.existsByTradingViewName(tradingViewName);
+        return userSocialRepository.existsByTradingViewName(tradingViewName);
     }
 
     public User save(User user) {

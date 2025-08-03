@@ -81,9 +81,7 @@ public class AuthService {
 
         authValidator.validateGoogleSignUp(dto);
 
-        var user = new User();
-        user.setEmail(googleUserInfo.getEmail());
-        user.setTradingViewName(dto.getTradingViewName());
+        var user = authMapper.toEntity(dto, googleUserInfo.getEmail());
         var password = stringGeneratorUtil.generatePassword();
         user.setPassword(passwordEncoder.encode(password));
 
@@ -106,6 +104,7 @@ public class AuthService {
         userPartnership.setUser(user);
         userProfile.setUser(user);
         userFinance.setUser(user);
+        user.getSocial().setUser(user);
         user.setProfile(userProfile);
         user.setPartnership(userPartnership);
         user.setFinance(userFinance);

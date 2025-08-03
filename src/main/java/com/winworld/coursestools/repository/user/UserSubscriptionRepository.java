@@ -19,7 +19,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             AND sp.subscription_type_id = :subscriptionTypeId
             AND us.status NOT IN ('TERMINATED')
             """, nativeQuery = true)
-    Optional<UserSubscription> getUserSubBySubType(int subscriptionTypeId, int userId);
+    Optional<UserSubscription> getUserSubBySubTypeNotTerminated(int subscriptionTypeId, int userId);
 
     @Query(value = """
             SELECT EXISTS (

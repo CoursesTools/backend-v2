@@ -31,9 +31,6 @@ public class UserProfile extends Auditable {
     @Column(length = 2)
     private String countryCode;
 
-    @Column(name = "discord_id", length = 32, unique = true)
-    private String discordId;
-
     @OneToOne(fetch = LAZY)
     @MapsId
     @JoinColumn(name = "user_id")

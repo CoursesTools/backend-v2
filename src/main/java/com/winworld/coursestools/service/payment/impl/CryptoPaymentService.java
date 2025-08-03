@@ -1,13 +1,12 @@
 package com.winworld.coursestools.service.payment.impl;
 
-import com.winworld.coursestools.dto.order.ProcessOrderDto;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
+import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.dto.payment.crypto.CryptoInvoiceCreateDto;
 import com.winworld.coursestools.dto.payment.crypto.CryptoInvoiceCreateResponse;
 import com.winworld.coursestools.dto.payment.crypto.CryptoRetrieveDto;
-import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.exception.exceptions.PaymentProcessingException;
-import com.winworld.coursestools.service.OrderService;
 import com.winworld.coursestools.service.payment.PaymentService;
 import com.winworld.coursestools.util.jwt.impl.CryptoJwtTokenUtil;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -40,8 +39,8 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
     @Value("${payment-platforms.crypto.shop-id}")
     private String shopId;
 
-    public CryptoPaymentService(OrderService orderService, RestTemplate restTemplate, CryptoJwtTokenUtil cryptoJwtTokenUtil) {
-        super(orderService);
+    public CryptoPaymentService(RestTemplate restTemplate, CryptoJwtTokenUtil cryptoJwtTokenUtil) {
+        super();
         this.restTemplate = restTemplate;
         addRequiredHeadersInterceptor();
         this.cryptoJwtTokenUtil = cryptoJwtTokenUtil;
@@ -49,24 +48,22 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
 
     @Override
     @Retry(name = "default", fallbackMethod = "handleFallback")
-    public String createPaymentLink(int orderId) {
-        Order order = orderService.getOrderById(orderId);
-
-        float amountInUsd = getPriceInUsd(order.getTotalPrice());
+    public String createPaymentLink(CreatePaymentLinkDto dto) {
+        float amountInUsd = getPriceInUsd(dto.getTotalPrice());
         var additionalFields = new CryptoInvoiceCreateDto.AdditionalFields(
                 Map.of("hours", TIME_TO_PAY)
         );
 
-        CryptoInvoiceCreateDto dto = CryptoInvoiceCreateDto.builder()
+        CryptoInvoiceCreateDto createDto = CryptoInvoiceCreateDto.builder()
                 .amount(amountInUsd)
-                .email(order.getUser().getEmail())
+                .email(dto.getEmail())
                 .shopId(shopId)
-                .orderId(order.getId().toString())
+                .orderId(dto.getOrderId().toString())
                 .additionalFields(additionalFields)
                 .build();
 
         var response = restTemplate.postForObject(
-                INVOICE_CREATE_URL, dto, CryptoInvoiceCreateResponse.class
+                INVOICE_CREATE_URL, createDto, CryptoInvoiceCreateResponse.class
         );
 
         return response.getResult().getLink();
@@ -78,17 +75,15 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
     }
 
     @Override
-    public void processPayment(CryptoRetrieveDto paymentRequest) {
+    public ProcessPaymentDto processPayment(CryptoRetrieveDto paymentRequest) {
         validatePaymentSignature(paymentRequest);
         Map<String, Object> paymentData = Map.of(INVOICE_ID, paymentRequest.getInvoiceId());
         int orderId = Integer.parseInt(paymentRequest.getOrderId());
 
-        ProcessOrderDto dto = ProcessOrderDto.builder()
+        return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
                 .orderId(orderId)
                 .build();
-        verifyPaymentMethodCompatibility(dto.getOrderId());
-        orderService.processSuccessfulPayment(dto);
     }
 
     private void validatePaymentSignature(CryptoRetrieveDto paymentRequest) {
@@ -120,10 +115,10 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
         this.restTemplate.getInterceptors().add(interceptor);
     }
 
-    private String handleFallback(int orderId, Throwable throwable) {
+    private String handleFallback(CreatePaymentLinkDto dto, Throwable throwable) {
         log.error(
                 "Error while creating CryptoCloud invoice for order: {}",
-                orderId,
+                dto.getOrderId(),
                 throwable
         );
         throw new PaymentProcessingException("Payment link creation failed");

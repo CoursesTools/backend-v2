@@ -14,7 +14,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/v1/transactions")
@@ -24,8 +28,12 @@ public class TransactionController {
 
     @GetMapping("/sum/{transactionType}")
     @PreAuthorize("hasRole('ADMIN')")
-    public TransactionsAmountDto getTransactionsAmount(@PathVariable String transactionType) {
-        return transactionFacade.getTransactionsAmount(transactionType);
+    public TransactionsAmountDto getTransactionsAmount(
+            @PathVariable String transactionType,
+            @RequestParam(required = false) LocalDate start,
+            @RequestParam(required = false) LocalDate end
+    ) {
+        return transactionFacade.getTransactionsAmount(transactionType, start, end);
     }
 
     @PostMapping("/withdraw")

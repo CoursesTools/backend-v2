@@ -15,9 +15,6 @@ emails:
   send-password:
     template: password.html
     subject: "Password for Courses Tools"
-  send-email-code:
-    template: password.html
-    subject: "Code for change email"
   registration:
     template: registration.html
     subject: "Welcome!"
@@ -45,3 +42,6 @@ emails:
   payment-retrieve:
     template: payment-retrieve.html
     subject: "Thank you, we’ve received your payment."
+  change-email:
+    template: change-email.html
+    subject: "Email change code"

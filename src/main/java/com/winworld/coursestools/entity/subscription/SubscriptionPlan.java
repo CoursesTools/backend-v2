@@ -12,7 +12,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.proxy.HibernateProxy;
 
 import java.math.BigDecimal;
@@ -25,6 +27,8 @@ import static jakarta.persistence.FetchType.LAZY;
 @Table(name = "subscription_plans")
 @Getter
 @Setter
+@SuperBuilder
+@NoArgsConstructor
 public class SubscriptionPlan extends BaseEntity {
     public static final String SUBSCRIPTION_TYPE = "subscriptionType";
 

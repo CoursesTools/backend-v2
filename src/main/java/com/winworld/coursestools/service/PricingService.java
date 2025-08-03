@@ -12,6 +12,9 @@ import java.math.RoundingMode;
 public class PricingService {
 
     public BigDecimal calculatePrice(Code code, BigDecimal discountMultiplier, BigDecimal subscriptionPrice) {
+        if (code.getDiscountType() == null || code.getDiscountValue() == null) {
+            return subscriptionPrice;
+        }
         var discount = discountMultiplier.multiply(code.getDiscountValue());
         if (code.getDiscountType().isPercentage()) {
             BigDecimal discountAmount = subscriptionPrice

@@ -23,6 +23,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Slf4j
 @Service
@@ -39,8 +42,25 @@ public class UserTransactionService {
     @Value("${secrets.withdrawal-secret}")
     private String withdrawalSecret;
 
-    public TransactionsAmountDto getTransactionSumAmount(TransactionType transactionType) {
-        BigDecimal amount = userTransactionRepository.getTransactionSumAmount(transactionType);
+    public TransactionsAmountDto getTransactionSumAmount(TransactionType transactionType, LocalDate startDate, LocalDate endDate) {
+        BigDecimal amount;
+        var startDateTime = startDate != null ? startDate.atStartOfDay() : null;
+        var endDateTime = endDate != null ? endDate.atTime(LocalTime.MAX) : null;
+
+        if (startDateTime != null && endDateTime != null) {
+            amount = userTransactionRepository.getTransactionSumAmountBetween(
+                    transactionType,
+                    startDateTime,
+                    endDateTime
+            );
+        } else if (startDateTime != null) {
+            amount = userTransactionRepository.getTransactionSumAmountFrom(transactionType, startDateTime);
+        }
+        else if (endDateTime != null) {
+            amount = userTransactionRepository.getTransactionSumAmountTo(transactionType, endDateTime);
+        } else {
+            amount = userTransactionRepository.getTransactionSumAmount(transactionType);
+        }
         return new TransactionsAmountDto(
                 getPriceInUsd(amount),
                 Currency.USD
@@ -70,7 +90,7 @@ public class UserTransactionService {
     }
 
     private BigDecimal getPriceInUsd(BigDecimal price) {
-        return price
+        return price == null || price.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO : price
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
@@ -91,7 +111,7 @@ public class UserTransactionService {
         return transactionMapper.toDto(transaction);
     }
 
-    @Retry(name = "default", fallbackMethod = "handleFallback")
+    @Retry(name = "client-error-included", fallbackMethod = "handleFallback")
     private void requestWithdrawal(WithdrawRequestDto dto) {
         restTemplate.postForObject(
                 withdrawalUrl,

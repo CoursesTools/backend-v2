@@ -1,4 +1,4 @@
-package com.winworld.coursestools.service;
+package com.winworld.coursestools.service.external;
 
 import com.winworld.coursestools.dto.external.ActivateSubscriptionDto;
 import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
@@ -20,11 +20,13 @@ public class ActivatingSubscriptionService {
 
     @Retry(name = "default", fallbackMethod = "handleFallback")
     public void activateSubscription(ActivateSubscriptionDto dto) {
+        //TODO сделать HMAC
         restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         log.info("Subscription activated for name: {}, expiration: {}", dto.getTradingViewName(), dto.getExpiration());
     }
 
     public void handleFallback(ActivateSubscriptionDto dto, Throwable throwable) {
+        //TODO сделать алерт
         log.error("Failed to activate subscription for name: {}, expiration: {}",
                   dto.getTradingViewName(), dto.getExpiration(), throwable);
         throw new ExternalServiceException("Failed to activate subscription");

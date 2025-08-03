@@ -8,6 +8,7 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -15,6 +16,7 @@ import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.subscription.SubscriptionPlanRepository;
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
+import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.EXTENDED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
@@ -55,6 +58,7 @@ public class SubscriptionService {
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final SubscriptionTypeRepository subscriptionTypeRepository;
     private final UserSubscriptionService userSubscriptionService;
+    private final StripePaymentService stripePaymentService;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -112,7 +116,9 @@ public class SubscriptionService {
             if (referred != null) {
                 referred.setActive(false);
             }
-            //TODO подумать на stripe отменой
+            if (userSubscription.getPaymentMethod().equals(STRIPE)) {
+                stripePaymentService.cancelSubscription(userSubscription);
+            }
             log.info("User {} subscription expired", user.getId());
             eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
             //TODO Сделать напоминание о 3 днях, 7 и т.д.
@@ -149,8 +155,10 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         if (userSubscription == null || userSubscription.getIsTrial()) {
-            createNewSubscription(userSubscription, order, user, paymentProviderData);
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), CREATED, userSubscription));
+            var newUserSubscription = createNewSubscription(userSubscription, order, user, paymentProviderData);
+            eventPublisher.publishEvent(
+                    subscriptionMapper.toEvent(newUserSubscription.getUser(), CREATED, newUserSubscription)
+            );
         } else if (userSubscription.getStatus().equals(GRACE_PERIOD)) {
             updateGracePeriodSubscription(userSubscription, order, paymentProviderData);
             eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), RESTORED, userSubscription));
@@ -160,7 +168,7 @@ public class SubscriptionService {
         }
     }
 
-    private void createNewSubscription(
+    private UserSubscription createNewSubscription(
             UserSubscription currentSubscription,
             Order order,
             User user,
@@ -189,7 +197,7 @@ public class SubscriptionService {
         newSubscription.setExpiredAt(expirationDate);
 
         user.addSubscription(newSubscription);
-        userSubscriptionService.save(newSubscription);
+        return userSubscriptionService.save(newSubscription);
     }
 
     private void updateGracePeriodSubscription(
@@ -202,12 +210,11 @@ public class SubscriptionService {
                 .plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
 
         subscription.setStatus(PENDING);
+        subscription.setPrice(order.getOriginalPrice());
         subscription.setPaymentMethod(order.getPaymentMethod());
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setPlan(order.getPlan());
         subscription.setExpiredAt(expirationDate);
-
-        //TODO Сделать отмену подписки страйп если сменился способ оплаты
     }
 
     private void extendExistingSubscription(
@@ -219,7 +226,12 @@ public class SubscriptionService {
         LocalDateTime expirationDate = subscription.getExpiredAt()
                 .plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
 
-        subscription.setPlan(order.getPlan());
+        if (subscription.getPaymentMethod().equals(STRIPE) && !order.getPaymentMethod().equals(STRIPE)) {
+            stripePaymentService.cancelSubscription(subscription);
+        }
+
+        subscription.setPlan(plan);
+        subscription.setPrice(order.getOriginalPrice());
         subscription.setPaymentMethod(order.getPaymentMethod());
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setExpiredAt(expirationDate);

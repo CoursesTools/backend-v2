@@ -5,6 +5,7 @@ import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.service.SubscriptionService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;

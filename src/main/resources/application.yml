@@ -19,13 +19,12 @@ spring:
     hibernate:
       ddl-auto: none
 
-
-  config:
-    import:
+  config.import:
       - classpath:configs/partnership.yml
       - classpath:configs/payment-platforms.yml
       - classpath:configs/emails.yml
       - classpath:configs/scheduler.yml
+      - classpath:configs/actuator.yml
 
 springdoc:
   api-docs:
@@ -44,6 +43,10 @@ oauth2:
     client-id: ${GOOGLE_CLIENT_ID}
     client-secret: ${GOOGLE_CLIENT_SECRET}
     redirect-uri: ${GOOGLE_REDIRECT_URI}
+  discord:
+    client-id: ${DISCORD_CLIENT_ID}
+    client-secret: ${DISCORD_CLIENT_SECRET}
+    redirect-uri: ${DISCORD_REDIRECT_URI}
 
 resilience4j:
   retry:
@@ -57,6 +60,14 @@ resilience4j:
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException
           - com.winworld.coursestools.exception.exceptions.DataValidationException
+      client-error-included:
+        maxAttempts: 3
+        waitDuration: 1s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        exponential-max-wait-duration: 5s
+        ignore-exceptions:
+          - com.winworld.coursestools.exception.exceptions.DataValidationException
 
 
 jwt:
@@ -69,6 +80,7 @@ urls:
   web-recovery: ${WEB_CLIENT_URL}${WEB_RECOVERY_URL}
   withdrawal: ${WITHDRAWAL_URL}
   activating-bot: ${ACTIVATING_BOT_URL}
+  telegram-bot: ${TELEGRAM_BOT_URL}
 
 secrets:
   withdrawal-secret: ${WITHDRAWAL_SECRET}
@@ -78,8 +90,7 @@ tokens:
     lifetime: 2m
   email-verification:
     lifetime: 3m
+  telegram-binding:
+    lifetime: 3m
 
-subscription:
-  ct-pro:
-    trial:
-      days: 3
+subscription.ct-pro.trial.days: 3

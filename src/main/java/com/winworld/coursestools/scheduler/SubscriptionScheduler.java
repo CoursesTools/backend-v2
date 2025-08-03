@@ -13,7 +13,7 @@ public class SubscriptionScheduler {
     private final SubscriptionService subscriptionService;
 
     //TODO последить за кол-вом пользователей, если будет много, то нужно будет оптимизировать
-
+    //TODO Сделать джобу, которая будет выдавать доступы тем, кому не выдала
 //    @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
     public void deactivateExpiredSubscriptions() {
         log.info("Deactivating expired subscriptions job start");

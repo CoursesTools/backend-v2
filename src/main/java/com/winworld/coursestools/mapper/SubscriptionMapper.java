@@ -18,7 +18,7 @@ import static org.mapstruct.ReportingPolicy.IGNORE;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = IGNORE)
 public interface SubscriptionMapper {
 
-    @Mapping(target = "tradingViewUsername", source = "user.tradingViewName")
+    @Mapping(target = "tradingViewUsername", source = "user.social.tradingViewName")
     @Mapping(target = "email", source = "user.email")
     @Mapping(target = "eventType", source = "eventType")
     @Mapping(target = "userSubscriptionId", source = "userSubscription.id")
