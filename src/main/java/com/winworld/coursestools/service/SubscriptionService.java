@@ -8,7 +8,6 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
-import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -31,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
@@ -106,7 +106,7 @@ public class SubscriptionService {
     }
 
     @Transactional
-    public void deactivateExpiredSubscriptions() {
+    public List<Integer> deactivateExpiredSubscriptions() {
         List<UserSubscription> usersSubscriptions = userSubscriptionService
                 .findAllExpiredSubscriptionsByStatus(GRANTED);
         usersSubscriptions.forEach(userSubscription -> {
@@ -123,10 +123,11 @@ public class SubscriptionService {
             eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
             //TODO Сделать напоминание о 3 днях, 7 и т.д.
         });
+        return usersSubscriptions.stream().map(UserSubscription::getId).toList();
     }
 
     @Transactional
-    public void deactivateExpiredTrialSubscriptions() {
+    public List<Integer> deactivateExpiredTrialSubscriptions() {
         List<UserSubscription> usersSubscriptions = userSubscriptionService
                 .findAllWithExpiredTrialSubscription();
         usersSubscriptions.forEach(userSubscription -> {
@@ -134,6 +135,7 @@ public class SubscriptionService {
             log.info("User subscription {} trial expired", userSubscription.getId());
             eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), TRIAL_ENDED, userSubscription));
         });
+        return usersSubscriptions.stream().map(UserSubscription::getId).collect(Collectors.toList());
     }
 
     @Transactional

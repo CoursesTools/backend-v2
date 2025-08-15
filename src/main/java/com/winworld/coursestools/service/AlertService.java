@@ -155,5 +155,9 @@ public class AlertService {
         var subscription = subscriptionService.getSubscription(SubscriptionName.COURSESTOOLSPRO);
         userSubscriptionService.getUserSubBySubTypeIdNotTerminated(userId, subscription.getId())
                 .orElseThrow(() -> new ConflictException("You must have a subscription to use this feature"));
+        User user = userDataService.getUserById(userId);
+        if (user.getSocial().getTelegramId() == null) {
+            throw new ConflictException("You must have a Telegram account to use this feature");
+        }
     }
 }

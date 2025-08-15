@@ -1,13 +1,12 @@
 package com.winworld.coursestools.controller;
 
+import com.winworld.coursestools.dto.auth.AuthTokensDto;
 import com.winworld.coursestools.dto.auth.BasicAuthSignInDto;
 import com.winworld.coursestools.dto.auth.BasicAuthSignUpDto;
 import com.winworld.coursestools.dto.auth.GoogleAuthSignInDto;
 import com.winworld.coursestools.dto.auth.GoogleAuthSignUpDto;
-import com.winworld.coursestools.dto.auth.AuthTokensDto;
 import com.winworld.coursestools.dto.recovery.RecoveryDto;
 import com.winworld.coursestools.facade.AuthFacade;
-import com.winworld.coursestools.util.EnvironmentUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ public class AuthController {
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
 
     private final AuthFacade authFacade;
-    private final EnvironmentUtil environmentUtil;
 
     @Value("${jwt.refreshLifeTime}")
     private Duration refreshLifeTime;
@@ -91,9 +89,9 @@ public class AuthController {
                 .httpOnly(true)
                 .value(tokens.getRefreshToken())
                 .maxAge(refreshLifeTime)
-                .path("/api")
-                .sameSite("Strict")
-                .secure(environmentUtil.isProd())
+                .sameSite("None")
+                .path("/")
+                .secure(true)
                 .build();
 
         AuthTokensDto responseTokens = new AuthTokensDto(
