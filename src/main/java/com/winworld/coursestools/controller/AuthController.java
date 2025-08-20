@@ -36,6 +36,9 @@ public class AuthController {
     @Value("${jwt.refreshLifeTime}")
     private Duration refreshLifeTime;
 
+    @Value("${cookie.domain}")
+    private String cookieDomain;
+
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<AuthTokensDto> signup(
@@ -90,6 +93,7 @@ public class AuthController {
                 .value(tokens.getRefreshToken())
                 .maxAge(refreshLifeTime)
                 .sameSite("None")
+                .domain("." + cookieDomain)
                 .path("/")
                 .secure(true)
                 .build();

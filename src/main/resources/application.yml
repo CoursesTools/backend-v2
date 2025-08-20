@@ -82,6 +82,9 @@ urls:
   activating-bot: ${ACTIVATING_BOT_URL}
   telegram-bot: ${TELEGRAM_BOT_URL}
 
+cookie:
+  domain: ${COOKIE_DOMAIN}
+
 secrets:
   withdrawal-secret: ${WITHDRAWAL_SECRET}
 
