@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -67,6 +68,17 @@ public class AuthController {
         return createAuthResponse(authFacade.signIn(dto));
     }
 
+    @DeleteMapping("/signout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> logout() {
+        ResponseCookie refreshTokenCookie = createRefreshTokenCookie(null, Duration.ZERO);
+
+        return ResponseEntity
+                .noContent()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                .build();
+    }
+
     @PostMapping("/signin/google")
     public ResponseEntity<AuthTokensDto> googleSignin(
             @RequestBody @Valid GoogleAuthSignInDto dto
@@ -87,16 +99,7 @@ public class AuthController {
     }
 
     private ResponseEntity<AuthTokensDto> createAuthResponse(AuthTokensDto tokens) {
-        ResponseCookie refreshTokenCookie = ResponseCookie
-                .from(REFRESH_TOKEN_COOKIE_NAME)
-                .httpOnly(true)
-                .value(tokens.getRefreshToken())
-                .maxAge(refreshLifeTime)
-                .sameSite("None")
-                .domain("." + cookieDomain)
-                .path("/")
-                .secure(true)
-                .build();
+        ResponseCookie refreshTokenCookie = createRefreshTokenCookie(tokens.getRefreshToken(), refreshLifeTime);
 
         AuthTokensDto responseTokens = new AuthTokensDto(
                 null, tokens.getAccessToken()
@@ -105,5 +108,17 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
                 .body(responseTokens);
+    }
+
+    private ResponseCookie createRefreshTokenCookie(String refreshToken, Duration refreshLifeTime) {
+        return ResponseCookie
+                .from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
+                .httpOnly(true)
+                .maxAge(refreshLifeTime)
+                .sameSite("None")
+                .domain("." + cookieDomain)
+                .path("/")
+                .secure(true)
+                .build();
     }
 }

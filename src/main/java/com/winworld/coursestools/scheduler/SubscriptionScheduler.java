@@ -4,6 +4,7 @@ import com.winworld.coursestools.service.AlertService;
 import com.winworld.coursestools.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,7 +16,7 @@ public class SubscriptionScheduler {
 
     //TODO последить за кол-вом пользователей, если будет много, то нужно будет оптимизировать
     //TODO Сделать джобу, которая будет выдавать доступы тем, кому не выдала
-//    @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
+    @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
     public void deactivateExpiredSubscriptions() {
         log.info("Deactivating expired subscriptions job start");
         var usersIds = subscriptionService.deactivateExpiredSubscriptions();
@@ -23,7 +24,7 @@ public class SubscriptionScheduler {
         log.info("Deactivating expired subscriptions job end");
     }
 
-    //    @Scheduled(cron = "${scheduler.subscription.trial-expired-subscriptions}")
+    @Scheduled(cron = "${scheduler.subscription.trial-expired-subscriptions}")
     public void cleanupExpiredTrialSubscriptions() {
         log.info("Deactivating trial expired subscriptions job start");
         var usersIds = subscriptionService.deactivateExpiredTrialSubscriptions();
@@ -31,7 +32,7 @@ public class SubscriptionScheduler {
         log.info("Deactivating trial expired subscriptions job end");
     }
 
-    //    @Scheduled(cron = "${scheduler.subscription.grace-period-expired-subscriptions}")
+    @Scheduled(cron = "${scheduler.subscription.grace-period-expired-subscriptions}")
     public void cleanupExpiredGracePeriodSubscriptions() {
         log.info("Deactivating expired subscriptions with grace period job start");
         subscriptionService.deactivateExpiredGracePeriodSubscriptions();
