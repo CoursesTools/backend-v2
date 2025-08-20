@@ -2,7 +2,7 @@ name: Build, Push and Deploy Frontend
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   workflow_dispatch:
 
 jobs:
