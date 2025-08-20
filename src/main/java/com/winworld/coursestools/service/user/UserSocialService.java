@@ -7,12 +7,14 @@ import com.winworld.coursestools.dto.user.UpdateUserTradingViewDto;
 import com.winworld.coursestools.dto.user.UserReadDto;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.mapper.UserMapper;
+import com.winworld.coursestools.service.AlertService;
 import com.winworld.coursestools.service.TokenService;
 import com.winworld.coursestools.service.external.OAuthDiscordService;
 import com.winworld.coursestools.validation.validator.UserValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ public class UserSocialService {
     private final UserMapper userMapper;
     private final UserValidator userValidator;
     private final OAuthDiscordService oAuthDiscordService;
+    private final AlertService alertService;
 
     @Value("${urls.telegram-bot}")
     private String urlTelegramBot;
@@ -64,8 +67,10 @@ public class UserSocialService {
         return userMapper.toDto(userDataService.save(user));
     }
 
+    @Transactional
     public UserReadDto unbindUserTelegram(int userId) {
         var user = userDataService.getUserById(userId);
+        alertService.unSubscribeOnAllAlerts(userId);
         user.getSocial().setTelegramId(null);
         return userMapper.toDto(userDataService.save(user));
     }
