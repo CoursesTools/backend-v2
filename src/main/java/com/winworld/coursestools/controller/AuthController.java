@@ -48,8 +48,7 @@ public class AuthController {
             String forwardedFor,
             HttpServletRequest request
     ) {
-        throw new RuntimeException("Sign up is disabled");
-//        return createAuthResponse(authFacade.signup(dto, forwardedFor != null ? forwardedFor : request.getRemoteAddr()));
+        return createAuthResponse(authFacade.signup(dto, forwardedFor != null ? forwardedFor : request.getRemoteAddr()));
     }
 
     @PostMapping("/signup/google")
