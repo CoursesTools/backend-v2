@@ -22,8 +22,9 @@ public class AuthValidator {
         validateTradingViewNameNotExists(dto.getTradingViewName());
     }
 
-    public void validateGoogleSignUp(GoogleAuthSignUpDto dto) {
+    public void validateGoogleSignUp(GoogleAuthSignUpDto dto, String email) {
         validateReferrerCode(dto.getReferrerCode());
+        validateEmailNotExists(email);
         validateTradingViewNameNotExists(dto.getTradingViewName());
     }
 

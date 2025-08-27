@@ -22,8 +22,10 @@ public class StripePaymentValidator implements PaymentValidator {
 
     @Override
     public void validate(User user, Order order, UserSubscription userSubscription) {
-        if (userSubscription != null && !userSubscription.getStatus().equals(GRACE_PERIOD)
-                && userSubscription.getPaymentMethod().equals(order.getPaymentMethod()) && order.getPaymentMethod().equals(STRIPE)) {
+        if (userSubscription == null || userSubscription.getStatus().equals(GRACE_PERIOD) || userSubscription.getIsTrial()) {
+            return;
+        }
+        if (userSubscription.getPaymentMethod().equals(order.getPaymentMethod()) && order.getPaymentMethod().equals(STRIPE)) {
             throw new ConflictException("You already have an active subscription with Stripe payment method.");
         }
     }

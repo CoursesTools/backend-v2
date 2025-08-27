@@ -79,7 +79,7 @@ public class AuthService {
             throw new SecurityException("Email not verified by Google");
         }
 
-        authValidator.validateGoogleSignUp(dto);
+        authValidator.validateGoogleSignUp(dto, googleUserInfo.getEmail());
 
         var user = authMapper.toEntity(dto, googleUserInfo.getEmail());
         var password = stringGeneratorUtil.generatePassword();
