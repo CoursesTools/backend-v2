@@ -73,12 +73,12 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
     @Override
     public ProcessPaymentDto processPayment(PayeerRetrieveDto paymentRequest) {
         var signature = generateSign(paymentRequest);
-        if (!paymentRequest.getSignature().equalsIgnoreCase(signature) ||
-                !paymentRequest.getStatus().equalsIgnoreCase("success")) {
+        if (!paymentRequest.getM_sign().equalsIgnoreCase(signature) ||
+                !paymentRequest.getM_status().equalsIgnoreCase("success")) {
             throw new IllegalArgumentException("Invalid signature or payment status");
         }
         return ProcessPaymentDto.builder()
-                .orderId(Integer.parseInt(paymentRequest.getOrderId()))
+                .orderId(Integer.parseInt(paymentRequest.getM_orderid()))
                 .build();
     }
 
@@ -107,16 +107,16 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
 
     private String generateSign(PayeerRetrieveDto dto) {
         String[] args = {
-                dto.getOperationId(),
-                dto.getOperationPs(),
-                dto.getOperationDate(),
-                dto.getOperationPayDate(),
-                dto.getMerchantId(),
-                dto.getOrderId(),
-                dto.getAmount(),
-                dto.getCurrency(),
-                dto.getDescription(),
-                dto.getStatus(),
+                dto.getM_operation_id(),
+                dto.getM_operation_ps(),
+                dto.getM_operation_date(),
+                dto.getM_operation_pay_date(),
+                dto.getM_shop(),
+                dto.getM_orderid(),
+                dto.getM_amount(),
+                dto.getM_curr(),
+                dto.getM_desc(),
+                dto.getM_status(),
                 secret
         };
         return DigestUtils.sha256Hex(join(SIGN_DELIMITER, args));
