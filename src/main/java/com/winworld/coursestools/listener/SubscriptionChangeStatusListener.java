@@ -56,6 +56,6 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
     @TransactionalEventListener
     @Async
     public void sendNotificationEmail(SubscriptionChangeStatusEvent event) {
-        sendEmails(event.getEmail(), event);
+//        sendEmails(event.getEmail(), event);
     }
 }
