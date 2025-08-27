@@ -102,7 +102,7 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
                 dto.getDescription(),
                 secret
         };
-        return DigestUtils.sha256Hex(join(SIGN_DELIMITER, args));
+        return DigestUtils.sha256Hex(join(SIGN_DELIMITER, args)).toUpperCase();
     }
 
     private String generateSign(PayeerRetrieveDto dto) {
