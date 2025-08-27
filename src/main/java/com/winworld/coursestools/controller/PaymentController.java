@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -39,8 +40,8 @@ public class PaymentController {
         paymentFacade.retrieveCryptoPayment(dto);
     }
 
-    @PostMapping(value = "/payeer")
-    public void retrievePayeerPayment(@RequestParam PayeerRetrieveDto dto) {
+    @PostMapping("/payeer")
+    public void retrievePayeerPayment(@ModelAttribute PayeerRetrieveDto dto) {
         paymentFacade.retrievePayeerPayment(dto);
     }
 
