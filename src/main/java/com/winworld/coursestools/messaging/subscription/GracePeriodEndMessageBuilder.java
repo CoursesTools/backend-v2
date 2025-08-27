@@ -12,7 +12,7 @@ import org.thymeleaf.context.Context;
 public class GracePeriodEndMessageBuilder extends MessageBuilder<SubscriptionChangeStatusEvent> {
     public GracePeriodEndMessageBuilder(
             TemplateEngine templateEngine,
-            @Value("${emails.grace-period-end.subject}}")
+            @Value("${emails.grace-period-end.subject}")
             String templateName,
             @Value("${emails.grace-period-end.template}")
             String subject

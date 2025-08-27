@@ -126,7 +126,6 @@ public class AlertService {
 
     @Transactional
     public void unSubscribeOnAllAlerts(int userId) {
-        checkUserSubscription(userId);
         userAlertRepository.deleteAllByUser_Id(userId);
     }
 
