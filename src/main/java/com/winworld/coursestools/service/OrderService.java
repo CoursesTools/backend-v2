@@ -2,6 +2,7 @@ package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.order.CreateOrderDto;
 import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
+import com.winworld.coursestools.dto.transaction.TransactionCreateDto;
 import com.winworld.coursestools.entity.Code;
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.Referral;
@@ -9,9 +10,10 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.OrderStatus;
-import com.winworld.coursestools.exception.exceptions.ConflictException;
+import com.winworld.coursestools.enums.OrderType;
+import com.winworld.coursestools.enums.PaymentMethod;
+import com.winworld.coursestools.enums.TransactionType;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
-import com.winworld.coursestools.mapper.OrderMapper;
 import com.winworld.coursestools.repository.OrderRepository;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
@@ -64,16 +66,14 @@ public class OrderService {
             totalPrice = pricingService.calculatePrice(
                     code, plan.getDiscountMultiplier(), subscriptionPrice
             );
-        }
-        else if (referrer != null && !referrer.isBonusUsed()) {
+        } else if (referrer != null && !referrer.isBonusUsed()) {
             code = referrer.getReferrer().getPartnerCode();
             totalPrice = pricingService.calculatePrice(
                     code,
                     plan.getDiscountMultiplier(),
                     subscriptionPrice
             );
-        }
-        else {
+        } else {
             totalPrice = subscriptionPrice;
         }
 
@@ -85,6 +85,8 @@ public class OrderService {
                 .paymentMethod(createDto.getPaymentMethod())
                 .plan(plan)
                 .status(OrderStatus.PENDING)
+                .orderType(createDto.getPaymentMethod().equals(PaymentMethod.STRIPE)
+                        ? OrderType.RECURRENT : OrderType.ONE_TIME)
                 .build();
 
         paymentValidators.stream()
@@ -97,32 +99,38 @@ public class OrderService {
     @Transactional
     public void processSuccessfulPayment(ProcessPaymentDto dto) {
         Order order = getOrderById(dto.getOrderId());
-        if (order.getStatus().equals(OrderStatus.PAID)) {
-            throw new ConflictException("Order already paid");
-        }
-        order.setStatus(OrderStatus.PAID);
         Code code = order.getCode();
-
+        boolean isRecurrent = order.getOrderType().equals(OrderType.RECURRENT);
         User user = order.getUser();
+
+        if (!order.getStatus().equals(OrderStatus.PAID)) {
+            order.setStatus(OrderStatus.PAID);
+            if (code != null) {
+                codeService.checkCode(user.getId(), code.getCode());
+                if (code.isPartnershipCode()) {
+                    referralService.registerReferral(code.getOwner(), user, true);
+                    partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
+                }
+                codeService.useCode(user.getId(), code);
+            }
+        }
+
         UserSubscription userSubscription = userSubscriptionService
                 .getUserSubBySubTypeIdNotTerminated(user.getId(), order.getPlan().getSubscriptionType().getId())
                 .orElse(null);
 
-        if (code != null) {
-            codeService.checkCode(user.getId(), code.getCode());
-            if (code.isPartnershipCode()) {
-                referralService.registerReferral(code.getOwner(), user, true);
-                partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
-            }
-            codeService.useCode(user.getId(), code);
-        }
         subscriptionService.updateUserSubscriptionAfterPayment(
                 userSubscription,
                 order,
                 user,
                 dto.getPaymentProviderData()
         );
-        var transaction = userTransactionService.addPurchaseTransaction(user.getId(), order.getTotalPrice());
+        var transaction = userTransactionService.addTransaction(new TransactionCreateDto(
+                user,
+                isRecurrent ? order.getOriginalPrice() : order.getTotalPrice(),
+                TransactionType.PURCHASE,
+                order
+        ));
 
         var referred = user.getReferred();
         if (referred != null) {

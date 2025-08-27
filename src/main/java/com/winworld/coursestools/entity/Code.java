@@ -12,7 +12,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -50,9 +49,6 @@ public class Code extends BaseEntity {
 
     @Column(name = "max_uses")
     private Integer maxUses;
-
-    @Column(name = "used_count", nullable = false)
-    private Integer usedCount;
 
     @OneToOne
     @JoinColumn(name = "owner_id", unique = true)

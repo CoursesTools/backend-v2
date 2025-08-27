@@ -1,5 +1,6 @@
 package com.winworld.coursestools.service.user;
 
+import com.winworld.coursestools.dto.transaction.TransactionCreateDto;
 import com.winworld.coursestools.dto.transaction.TransactionReadDto;
 import com.winworld.coursestools.dto.transaction.TransactionWithdrawDto;
 import com.winworld.coursestools.dto.transaction.TransactionsAmountDto;
@@ -24,7 +25,6 @@ import org.springframework.web.client.RestTemplate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Slf4j
@@ -55,8 +55,7 @@ public class UserTransactionService {
             );
         } else if (startDateTime != null) {
             amount = userTransactionRepository.getTransactionSumAmountFrom(transactionType, startDateTime);
-        }
-        else if (endDateTime != null) {
+        } else if (endDateTime != null) {
             amount = userTransactionRepository.getTransactionSumAmountTo(transactionType, endDateTime);
         } else {
             amount = userTransactionRepository.getTransactionSumAmount(transactionType);
@@ -72,21 +71,9 @@ public class UserTransactionService {
                 .orElseThrow(() -> new EntityNotFoundException("Transaction not found with id: " + transactionId));
     }
 
-    public UserTransaction addTransaction(int userId, BigDecimal amount, TransactionType transactionType) {
-        var userTransaction = UserTransaction.builder()
-                .transactionType(transactionType)
-                .user(userDataService.getUserById(userId))
-                .amount(amount)
-                .build();
+    public UserTransaction addTransaction(TransactionCreateDto dto) {
+        var userTransaction = transactionMapper.toEntity(dto);
         return userTransactionRepository.save(userTransaction);
-    }
-
-    public UserTransaction addPurchaseTransaction(int userId, BigDecimal amount) {
-        return addTransaction(userId, amount, TransactionType.PURCHASE);
-    }
-
-    public UserTransaction addWithdrawalTransaction(int userId, BigDecimal amount) {
-        return addTransaction(userId, amount, TransactionType.WITHDRAWAL);
     }
 
     private BigDecimal getPriceInUsd(BigDecimal price) {
@@ -101,7 +88,7 @@ public class UserTransactionService {
             throw new ConflictException("Insufficient balance for withdrawal");
         }
         user.getFinance().addBalance(dto.getAmount().negate());
-        var transaction = addWithdrawalTransaction(userId, dto.getAmount());
+        var transaction = addTransaction(new TransactionCreateDto(user, dto.getAmount(), TransactionType.WITHDRAWAL, null));
 
         WithdrawRequestDto withdrawalRequest = transactionMapper.toDto(transaction, dto.getWallet(), withdrawalSecret);
         withdrawalRequest.setAmount(getPriceInUsd(dto.getAmount()));

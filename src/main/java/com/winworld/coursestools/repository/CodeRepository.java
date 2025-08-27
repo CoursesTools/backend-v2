@@ -22,6 +22,13 @@ public interface CodeRepository extends JpaRepository<Code, String> {
             """, nativeQuery = true)
     boolean existsUsageCodeByUser(int userId, int codeId);
 
+    @Query(value =
+            """
+            SELECT COUNT(*) FROM codes_usages
+            WHERE code_id = :codeId
+            """, nativeQuery = true)
+    int countCodeUsages(int codeId);
+
     @Query(value = """
             INSERT INTO codes_usages(code_id, user_id)
             VALUES (:codeId, :userId)

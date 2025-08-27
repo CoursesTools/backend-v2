@@ -3,9 +3,10 @@ package com.winworld.coursestools.entity;
 import com.winworld.coursestools.entity.base.BaseEntity;
 import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
+import com.winworld.coursestools.entity.user.UserTransaction;
 import com.winworld.coursestools.enums.OrderStatus;
+import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
-import com.winworld.coursestools.enums.Plan;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,15 +14,16 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -54,7 +56,14 @@ public class Order extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     private SubscriptionPlan plan;
 
+    @OneToMany(fetch = FetchType.LAZY, mappedBy = "order")
+    private List<UserTransaction> userTransactions;
+
     @Column(name = "status", length = 16, nullable = false)
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
+
+    @Column(name = "order_type", length = 16, nullable = false)
+    @Enumerated(EnumType.STRING)
+    private OrderType orderType;
 }

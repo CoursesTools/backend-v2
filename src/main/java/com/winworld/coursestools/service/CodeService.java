@@ -16,8 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -35,7 +33,6 @@ public class CodeService {
                 .owner(user)
                 .discountType(DiscountType.PERCENTAGE)
                 .discountValue(partnershipProps.getDiscount())
-                .usedCount(0)
                 .build();
         codeRepository.save(code);
     }
@@ -45,12 +42,7 @@ public class CodeService {
     }
 
     public void useCode(int userId, Code code) {
-        if (code.getMaxUses() != null && code.getUsedCount() >= code.getMaxUses()) {
-            log.warn("User {} tried to use code {} but it has reached max uses", userId, code.getCode());
-        }
-        else if (code.getValidUntil() != null && code.getValidUntil().isBefore(LocalDate.now())) {
-            log.warn("User {} tried to use code {} but it is expired", userId, code.getCode());
-        }
+        checkCode(userId, code.getCode());
         codeRepository.useCode(code.getId(), userId);
     }
 

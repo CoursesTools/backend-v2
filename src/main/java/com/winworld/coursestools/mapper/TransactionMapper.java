@@ -1,5 +1,6 @@
 package com.winworld.coursestools.mapper;
 
+import com.winworld.coursestools.dto.transaction.TransactionCreateDto;
 import com.winworld.coursestools.dto.transaction.TransactionReadDto;
 import com.winworld.coursestools.dto.transaction.WithdrawRequestDto;
 import com.winworld.coursestools.entity.user.UserTransaction;
@@ -19,4 +20,6 @@ public interface TransactionMapper {
     @Mapping(target = "amount", ignore = true)
     @Mapping(target = "email", source = "transaction.user.email")
     WithdrawRequestDto toDto(UserTransaction transaction, String wallet, String secret);
+
+    UserTransaction toEntity(TransactionCreateDto dto);
 }

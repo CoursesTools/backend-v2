@@ -27,7 +27,7 @@ public class UserSocial extends BaseEntity {
     @Column(name = "trading_view_name", length = 32, nullable = false, unique = true)
     private String tradingViewName;
 
-    @Column(name = "telegram_id", length = 9, unique = true)
+    @Column(name = "telegram_id", unique = true)
     private String telegramId;
 
     @Column(name = "discord_id", length = 32, unique = true)

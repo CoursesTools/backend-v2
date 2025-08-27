@@ -14,7 +14,7 @@ public class UpdateUserTelegramDto {
     @Size(min = 8, max = 8, message = TOKEN_MUST_BE_EXACTLY_8_CHARACTERS_LONG)
     @NotNull(message = NOT_NULL_MESSAGE)
     private String token;
-    @Size(min = 9, max = 9, message = TELEGRAM_ID_MESSAGE)
+    @Size(min = 9, max = 16, message = TELEGRAM_ID_MESSAGE)
     @NotNull(message = NOT_NULL_MESSAGE)
     private String telegramId;
 }

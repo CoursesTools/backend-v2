@@ -3,6 +3,7 @@ package com.winworld.coursestools.validation.validator;
 import com.winworld.coursestools.entity.Code;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
+import com.winworld.coursestools.repository.CodeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,8 +12,10 @@ import java.time.LocalDate;
 @Component
 @RequiredArgsConstructor
 public class CodeValidator {
+    private final CodeRepository codeRepository;
+
     public void validateCodeEligibility(Code code, User user) {
-        if (code.getMaxUses() != null && code.getUsedCount() >= code.getMaxUses()) {
+        if (code.getMaxUses() != null && codeRepository.countCodeUsages(code.getId()) >= code.getMaxUses()) {
             throw new ConflictException("Code has reached max uses");
         }
         else if (code.getValidUntil() != null && code.getValidUntil().isBefore(LocalDate.now())) {
