@@ -4,6 +4,7 @@ import com.winworld.coursestools.dto.payment.BalanceRetrieveDto;
 import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
 import com.winworld.coursestools.dto.payment.crypto.CryptoRetrieveDto;
+import com.winworld.coursestools.dto.payment.payeer.PayeerRetrieveDto;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.SubscriptionName;
@@ -13,6 +14,7 @@ import com.winworld.coursestools.service.OrderService;
 import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.payment.impl.BalancePaymentService;
 import com.winworld.coursestools.service.payment.impl.CryptoPaymentService;
+import com.winworld.coursestools.service.payment.impl.PayeerPaymentService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class PaymentFacade {
     private final OrderService orderService;
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionService userSubscriptionService;
+    private final PayeerPaymentService payeerPaymentService;
 
     public void retrieveStripePayment(String payload, String signature) {
         StripeRetrieveDto dto = StripeRetrieveDto.builder()
@@ -34,6 +37,10 @@ public class PaymentFacade {
                 .signature(signature)
                 .build();
         processOrder(stripePaymentService.processPayment(dto));
+    }
+
+    public void retrievePayeerPayment(PayeerRetrieveDto dto) {
+        processOrder(payeerPaymentService.processPayment(dto));
     }
 
     public void retrieveCryptoPayment(CryptoRetrieveDto dto) {

@@ -4,9 +4,7 @@ import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.payeer.PayeerCreatePaymentDto;
 import com.winworld.coursestools.dto.payment.payeer.PayeerRetrieveDto;
-import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.enums.PaymentMethod;
-import com.winworld.coursestools.service.OrderService;
 import com.winworld.coursestools.service.payment.PaymentService;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Base64;
 
@@ -53,9 +52,17 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
                 .currency(USD)
                 .merchantId(shopId)
                 .build();
-        createPaymentDto.setSignature(generateSign(createPaymentDto));
-        return null;
-        //TODO добавить обработку платежа
+
+        String signature = generateSign(createPaymentDto);
+
+        return UriComponentsBuilder.fromHttpUrl(CREATE_PAYMENT_URL)
+                .queryParam("m_shop", createPaymentDto.getMerchantId())
+                .queryParam("m_orderid", createPaymentDto.getOrderId())
+                .queryParam("m_amount", createPaymentDto.getAmount())
+                .queryParam("m_curr", createPaymentDto.getCurrency())
+                .queryParam("m_desc", createPaymentDto.getDescription())
+                .queryParam("m_sign", signature)
+                .toUriString();
     }
 
     @Override
@@ -65,7 +72,14 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
 
     @Override
     public ProcessPaymentDto processPayment(PayeerRetrieveDto paymentRequest) {
-        return null;
+        var signature = generateSign(paymentRequest);
+        if (!paymentRequest.getSignature().equalsIgnoreCase(signature) ||
+                !paymentRequest.getStatus().equalsIgnoreCase("success")) {
+            throw new IllegalArgumentException("Invalid signature or payment status");
+        }
+        return ProcessPaymentDto.builder()
+                .orderId(Integer.parseInt(paymentRequest.getOrderId()))
+                .build();
     }
 
     private void addContentTypeHeaderInterceptor() {
@@ -86,6 +100,23 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
                 dto.getAmount(),
                 dto.getCurrency(),
                 dto.getDescription(),
+                secret
+        };
+        return DigestUtils.sha256Hex(join(SIGN_DELIMITER, args));
+    }
+
+    private String generateSign(PayeerRetrieveDto dto) {
+        String[] args = {
+                dto.getOperationId(),
+                dto.getOperationPs(),
+                dto.getOperationDate(),
+                dto.getOperationPayDate(),
+                dto.getMerchantId(),
+                dto.getOrderId(),
+                dto.getAmount(),
+                dto.getCurrency(),
+                dto.getDescription(),
+                dto.getStatus(),
                 secret
         };
         return DigestUtils.sha256Hex(join(SIGN_DELIMITER, args));
