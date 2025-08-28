@@ -150,6 +150,7 @@ public class SubscriptionService {
         });
     }
 
+    @Transactional
     public void updateUserSubscriptionAfterPayment(
             UserSubscription userSubscription,
             Order order,

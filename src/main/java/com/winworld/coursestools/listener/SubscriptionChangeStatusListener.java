@@ -38,9 +38,8 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         this.userSubscriptionService = userSubscriptionService;
     }
 
-    @EventListener
+    @TransactionalEventListener
     @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void activateUserSubscription(SubscriptionChangeStatusEvent event) {
         if (!EVENTS_FOR_ACTIVATE.contains(event.getEventType())) {
             return;
