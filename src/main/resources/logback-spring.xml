@@ -23,6 +23,12 @@
                     </pattern>
                     <stackTrace>
                         <fieldName>stack_trace</fieldName>
+                        <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                            <maxDepthPerThrowable>5</maxDepthPerThrowable>
+                            <shortenedClassNameLength>30</shortenedClassNameLength>
+                            <rootCauseFirst>true</rootCauseFirst>
+                            <inlineHash>true</inlineHash>
+                        </throwableConverter>
                     </stackTrace>
                 </providers>
             </encoder>
