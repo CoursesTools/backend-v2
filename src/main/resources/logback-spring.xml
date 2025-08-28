@@ -1,12 +1,11 @@
 <configuration>
     <springProfile name="dev">
         <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
-        <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter" />
         <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter" />
 
         <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
-                <pattern>%clr(%d{"yyyy-MM-dd HH:mm:ss XXX"}){faint} %clr([%thread]){magenta} %clr(%-5level) %clr(%logger{36}){cyan} - %msg%n</pattern>
+                <pattern>%clr(%d{"yyyy-MM-dd HH:mm:ss XXX"}){faint} %clr([%thread]){magenta} %clr(%-5level) %clr(%logger{36}){cyan} - %msg%n%wex</pattern>
             </encoder>
         </appender>
     </springProfile>
@@ -19,6 +18,9 @@
                     <loggerName/>
                     <mdc/>
                     <message/>
+                    <pattern>
+                        <pattern>{"thread":"%thread"}</pattern>
+                    </pattern>
                     <stackTrace>
                         <fieldName>stack_trace</fieldName>
                     </stackTrace>
