@@ -11,10 +11,18 @@
         </appender>
     </springProfile>
     <springProfile name="prod">
-        <conversionRule conversionWord="exShort" converterClass="ch.qos.logback.classic.pattern.ThrowableProxyConverter" />
         <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder>
-                <pattern>%d{"yyyy-MM-dd HH:mm:ss XXX"} [%thread] %-5level %logger{36} - %msg%n%exShort{short}</pattern>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <loggerName/>
+                    <mdc/>
+                    <message/>
+                    <stackTrace>
+                        <fieldName>stack_trace</fieldName>
+                    </stackTrace>
+                </providers>
             </encoder>
         </appender>
     </springProfile>

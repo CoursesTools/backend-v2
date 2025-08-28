@@ -39,6 +39,7 @@ val springDocWebMvcUiVersion = "2.1.0"
 val jacksonNullableVersion = "0.2.6"
 val wireMockVersion = "3.12.1"
 val testContainersRedisVersion = "2.2.2"
+val logbackEncoderVersion = 7.4
 dependencies {
     /**
     Spring starters
@@ -73,6 +74,7 @@ dependencies {
      */
     implementation("org.projectlombok:lombok:$lombokVersion")
     annotationProcessor("org.projectlombok:lombok:$lombokVersion")
+    implementation ("net.logstash.logback:logstash-logback-encoder:$logbackEncoderVersion")
     implementation("org.mapstruct:mapstruct:$mapstructVersion")
     annotationProcessor("org.mapstruct:mapstruct-processor:$mapstructVersion")
     implementation("commons-codec:commons-codec:$commonsCodecVersion")
