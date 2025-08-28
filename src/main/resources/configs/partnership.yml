@@ -9,5 +9,50 @@ partnership:
     - rank: 1
       name: START_10
       required-referrals: 20
-      cashback-1: 10
-      cashback-2: 20
+      cashback-1: 15
+      cashback-2: 8
+    - rank: 2
+      name: BRONZE_20
+      required-referrals: 50
+      cashback-1: 16
+      cashback-2: 9
+    - rank: 3
+      name: BRONZE_50
+      required-referrals: 100
+      cashback-1: 17
+      cashback-2: 10
+    - rank: 4
+      name: SILVER_100
+      required-referrals: 200
+      cashback-1: 18
+      cashback-2: 11
+    - rank: 5
+      name: SILVER_200
+      required-referrals: 500
+      cashback-1: 20
+      cashback-2: 12
+    - rank: 6
+      name: GOLD_500
+      required-referrals: 1000
+      cashback-1: 21
+      cashback-2: 13
+    - rank: 7
+      name: GOLD_1000
+      required-referrals: 5000
+      cashback-1: 22
+      cashback-2: 14
+    - rank: 8
+      name: DIAMOND_5000
+      required-referrals: 10000
+      cashback-1: 25
+      cashback-2: 14
+    - rank: 9
+      name: DIAMOND_10000
+      required-referrals: 50000
+      cashback-1: 30
+      cashback-2: 15
+    - rank: 10
+      name: KING_50000
+      required-referrals: 50000
+      cashback-1: 33
+      cashback-2: 16
