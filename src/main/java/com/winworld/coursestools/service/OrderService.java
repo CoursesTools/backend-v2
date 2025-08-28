@@ -106,12 +106,11 @@ public class OrderService {
         if (!order.getStatus().equals(OrderStatus.PAID)) {
             order.setStatus(OrderStatus.PAID);
             if (code != null) {
-                codeService.checkCode(user.getId(), code.getCode());
+                codeService.useCode(user.getId(), code);
                 if (code.isPartnershipCode()) {
                     referralService.registerReferral(code.getOwner(), user, true);
                     partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
                 }
-                codeService.useCode(user.getId(), code);
             }
         }
 

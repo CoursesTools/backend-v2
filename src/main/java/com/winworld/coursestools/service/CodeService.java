@@ -37,8 +37,8 @@ public class CodeService {
         codeRepository.save(code);
     }
 
-    public boolean existsByUserIdAndPromoCodeId(int userId, int code) {
-        return codeRepository.existsUsageCodeByUser(userId, code);
+    public boolean existsByUserIdAndPromoCodeId(int userId, int codeId) {
+        return codeRepository.existsUsageCodeByUser(userId, codeId);
     }
 
     public void useCode(int userId, Code code) {
