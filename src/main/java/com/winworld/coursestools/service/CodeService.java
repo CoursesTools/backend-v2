@@ -15,6 +15,7 @@ import com.winworld.coursestools.validation.validator.CodeValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +27,8 @@ public class CodeService {
     private final UserDataService userDataService;
     private final CodeValidator codeValidator;
     private final CodeMapper codeMapper;
+    private final ReferralService referralService;
+    private final PartnershipService partnershipService;
 
     public void createPartnerCode(User user) {
         Code code = Code.builder()
@@ -41,8 +44,16 @@ public class CodeService {
         return codeRepository.existsUsageCodeByUser(userId, codeId);
     }
 
+    @Transactional
     public void useCode(int userId, Code code) {
+        User user = userDataService.getUserById(userId);
         checkCode(userId, code.getCode());
+        if (code.isPartnershipCode()) {
+            if (!codeValidator.isUserAlreadyHaveReferrer(user, code)) {
+                referralService.registerReferral(code.getOwner(), user, true);
+            }
+            partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
+        }
         codeRepository.useCode(code.getId(), userId);
     }
 

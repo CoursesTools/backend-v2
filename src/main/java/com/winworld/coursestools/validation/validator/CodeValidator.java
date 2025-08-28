@@ -27,7 +27,7 @@ public class CodeValidator {
         }
 
         //Checks for partner code
-        if (user.hasReferrer() && !user.getReferred().getReferrer().equals(code.getOwner())) {
+        if (isUserAlreadyHaveReferrer(user, code)) {
             throw new ConflictException("You already have a referrer");
         }
 
@@ -40,5 +40,9 @@ public class CodeValidator {
             throw new ConflictException("You are already listed as a curator for " +
                     "this user and therefore he cannot become your curator");
         }
+    }
+
+    public boolean isUserAlreadyHaveReferrer(User user, Code code) {
+        return user.hasReferrer() && !user.getReferred().getReferrer().equals(code.getOwner());
     }
 }

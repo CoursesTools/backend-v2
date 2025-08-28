@@ -38,7 +38,6 @@ public class OrderService {
     private final UserTransactionService userTransactionService;
     private final PricingService pricingService;
     private final UserSubscriptionService userSubscriptionService;
-    private final ReferralService referralService;
     private final PartnershipService partnershipService;
     private final List<PaymentValidator> paymentValidators;
 
@@ -108,10 +107,6 @@ public class OrderService {
 
         if (!orderIsPaid && code != null) {
             codeService.useCode(user.getId(), code);
-            if (code.isPartnershipCode()) {
-                referralService.registerReferral(code.getOwner(), user, true);
-                partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
-            }
         }
 
         UserSubscription userSubscription = userSubscriptionService
