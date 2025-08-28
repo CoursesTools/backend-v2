@@ -27,7 +27,7 @@ public class CodeValidator {
         }
 
         //Checks for partner code
-        if (isUserAlreadyHaveReferrer(user, code)) {
+        if (user.hasReferrer() && isCodeOwnerNotUserReferrer(user, code)) {
             throw new ConflictException("You already have a referrer");
         }
 
@@ -42,7 +42,7 @@ public class CodeValidator {
         }
     }
 
-    public boolean isUserAlreadyHaveReferrer(User user, Code code) {
-        return user.hasReferrer() && !user.getReferred().getReferrer().equals(code.getOwner());
+    public boolean isCodeOwnerNotUserReferrer(User user, Code code) {
+        return !user.getReferred().getReferrer().equals(code.getOwner());
     }
 }

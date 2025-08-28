@@ -49,7 +49,7 @@ public class CodeService {
         User user = userDataService.getUserById(userId);
         checkCode(userId, code.getCode());
         if (code.isPartnershipCode()) {
-            if (!codeValidator.isUserAlreadyHaveReferrer(user, code)) {
+            if (!user.hasReferrer()) {
                 referralService.registerReferral(code.getOwner(), user, true);
             }
             partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
