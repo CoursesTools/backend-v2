@@ -100,17 +100,17 @@ public class OrderService {
     public void processSuccessfulPayment(ProcessPaymentDto dto) {
         Order order = getOrderById(dto.getOrderId());
         Code code = order.getCode();
-        boolean isRecurrent = order.getOrderType().equals(OrderType.RECURRENT);
         User user = order.getUser();
 
-        if (!order.getStatus().equals(OrderStatus.PAID)) {
-            order.setStatus(OrderStatus.PAID);
-            if (code != null) {
-                codeService.useCode(user.getId(), code);
-                if (code.isPartnershipCode()) {
-                    referralService.registerReferral(code.getOwner(), user, true);
-                    partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
-                }
+        boolean orderIsPaid = order.getStatus().equals(OrderStatus.PAID);
+        boolean isRecurrentPayment = order.getOrderType().equals(OrderType.RECURRENT) && orderIsPaid;
+        var paymentAmount = isRecurrentPayment ? order.getOriginalPrice() : order.getTotalPrice();
+
+        if (!orderIsPaid && code != null) {
+            codeService.useCode(user.getId(), code);
+            if (code.isPartnershipCode()) {
+                referralService.registerReferral(code.getOwner(), user, true);
+                partnershipService.recalculateLevelAfterNewReferral(code.getOwner());
             }
         }
 
@@ -126,7 +126,7 @@ public class OrderService {
         );
         var transaction = userTransactionService.addTransaction(new TransactionCreateDto(
                 user,
-                isRecurrent ? order.getOriginalPrice() : order.getTotalPrice(),
+                paymentAmount,
                 TransactionType.PURCHASE,
                 order
         ));
@@ -134,7 +134,7 @@ public class OrderService {
         var referred = user.getReferred();
         if (referred != null) {
             partnershipService.calculateCashbackAfterNewReferral(
-                    referred, order.getTotalPrice(), transaction
+                    referred, paymentAmount, transaction
             );
             if (!referred.isActive()) {
                 referred.setActive(true);
@@ -142,6 +142,9 @@ public class OrderService {
             if (!referred.isBonusUsed() && (code == null || code.equals(referred.getReferrer().getPartnerCode()))) {
                 referred.setBonusUsed(true);
             }
+        }
+        if (!orderIsPaid) {
+            order.setStatus(OrderStatus.PAID);
         }
     }
 
