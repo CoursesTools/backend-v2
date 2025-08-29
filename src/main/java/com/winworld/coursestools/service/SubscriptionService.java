@@ -1,5 +1,7 @@
 package com.winworld.coursestools.service;
 
+import com.winworld.coursestools.dto.external.ActivateSubscriptionDto;
+import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.entity.Order;
@@ -15,6 +17,7 @@ import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.subscription.SubscriptionPlanRepository;
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
+import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
@@ -59,6 +62,7 @@ public class SubscriptionService {
     private final SubscriptionTypeRepository subscriptionTypeRepository;
     private final UserSubscriptionService userSubscriptionService;
     private final StripePaymentService stripePaymentService;
+    private final ActivatingSubscriptionService activatingSubscriptionService;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -242,5 +246,20 @@ public class SubscriptionService {
 
     private LocalDateTime getNow() {
         return LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    @Transactional
+    public UserSubscriptionReadDto activateSubscription(SubscriptionActivateDto dto) {
+        User user = userDataService.getUserByTradingViewName(dto.getUsername());
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        UserSubscription userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
+                user.getId(), subscriptionType.getId()
+        ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
+        var expiration = dto.getExpiration().atStartOfDay();
+        userSubscription.setExpiredAt(expiration);
+        activatingSubscriptionService.activateSubscription(
+                new ActivateSubscriptionDto(user.getEmail(), dto.getUsername(), expiration)
+        );
+        return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }
 }

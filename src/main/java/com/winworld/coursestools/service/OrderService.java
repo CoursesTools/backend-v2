@@ -21,12 +21,14 @@ import com.winworld.coursestools.service.user.UserTransactionService;
 import com.winworld.coursestools.validation.validator.OrderValidator;
 import com.winworld.coursestools.validation.validator.payment.PaymentValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -141,6 +143,7 @@ public class OrderService {
         if (!orderIsPaid) {
             order.setStatus(OrderStatus.PAID);
         }
+        log.info("Order {} for user {} processed successfully", order.getId(), user.getId());
     }
 
     public Order getOrderById(int id) {

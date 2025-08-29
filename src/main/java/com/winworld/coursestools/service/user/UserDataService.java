@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserDataService {
     private static final String EMAIL_NOT_FOUND = "User with email %s not found";
+    private static final String TRADING_VIEW_NAME_NOT_FOUND = "User with trading view name %s not found";
     private static final String ID_NOT_FOUND = "User with id %d not found";
     private static final String PARTNER_CODE_NOT_FOUND = "User with partner code %s not found";
 
@@ -23,6 +24,13 @@ public class UserDataService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         String.format(EMAIL_NOT_FOUND, email)
                 ));
+    }
+
+    public User getUserByTradingViewName(String username) {
+        return userSocialRepository.findByTradingViewName(username)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        String.format(TRADING_VIEW_NAME_NOT_FOUND, username)
+                )).getUser();
     }
 
     public User getUserById(int id) {
