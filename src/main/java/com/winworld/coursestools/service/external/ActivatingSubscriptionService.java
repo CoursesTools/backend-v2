@@ -18,9 +18,13 @@ public class ActivatingSubscriptionService {
     @Value("${urls.activating-bot}")
     private String activatingBotUrl;
 
+    @Value("${secrets.activate-subscription-secret}")
+    private String secret;
+
     @Retry(name = "default", fallbackMethod = "handleFallback")
     public void activateSubscription(ActivateSubscriptionDto dto) {
         //TODO сделать HMAC
+        dto.setSecret(secret);
         restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         log.info("Subscription activated for name: {}, expiration: {}", dto.getTradingViewName(), dto.getExpiration());
     }

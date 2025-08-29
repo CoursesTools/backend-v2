@@ -87,6 +87,7 @@ cookie:
 
 secrets:
   withdrawal-secret: ${WITHDRAWAL_SECRET}
+  activate-subscription-secret: ${ACTIVATE_SUBSCRIPTION_SECRET}
 
 tokens:
   password-reset:
