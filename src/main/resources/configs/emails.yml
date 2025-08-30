@@ -1,7 +1,7 @@
 spring:
   mail:
-    host: mail.hosting.reg.ru
-    port: 587
+    host: ${EMAIL_HOST}
+    port: ${EMAIL_PORT}
     password: ${EMAIL_PASSWORD}
     username: ${EMAIL_USERNAME}
     properties:
