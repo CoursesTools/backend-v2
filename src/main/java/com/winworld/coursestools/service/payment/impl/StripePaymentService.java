@@ -80,14 +80,14 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public void cancelSubscription(@NotNull UserSubscription userSubscription) {
         var stripeSubscriptionId = (String) userSubscription.getPaymentProviderData().get(SUBSCRIPTION_ID);
         if (stripeSubscriptionId == null) {
-            throw new EntityNotFoundException("Stripe subscription ID not found");
+            log.warn("Stripe subscription id not found, user id {}", userSubscription.getUser().getId());
+            return;
         }
         try {
             var resource = Subscription.retrieve(stripeSubscriptionId);
             resource.cancel(SubscriptionCancelParams.builder().build());
         } catch (StripeException e) {
             log.error("Failed to cancel Stripe subscription with ID: {}", stripeSubscriptionId, e);
-            throw new ExternalServiceException("Failed to cancel subscription");
         }
     }
 
@@ -123,9 +123,6 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
 
     private Integer getOrderIdFromInvoice(Invoice invoice) {
         String orderId = invoice.getLines().getData().get(0).getMetadata().get("order_id");
-        if (Objects.equals(orderId, "66a77210d4cca234d62502fa")) {
-            return 7;
-        }
         return Integer.parseInt(orderId);
     }
 

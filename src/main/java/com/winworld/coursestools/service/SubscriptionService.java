@@ -120,7 +120,7 @@ public class SubscriptionService {
             if (referred != null) {
                 referred.setActive(false);
             }
-            if (userSubscription.getPaymentMethod().equals(STRIPE)) {
+            if (!userSubscription.getIsTrial() && userSubscription.getPaymentMethod().equals(STRIPE)) {
                 stripePaymentService.cancelSubscription(userSubscription);
             }
             log.info("User {} subscription expired", user.getId());
