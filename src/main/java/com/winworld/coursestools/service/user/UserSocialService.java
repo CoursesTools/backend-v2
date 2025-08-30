@@ -1,14 +1,22 @@
 package com.winworld.coursestools.service.user;
 
 import com.winworld.coursestools.dto.RedirectDto;
+import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
+import com.winworld.coursestools.dto.external.ChangeTradingViewNameDto;
 import com.winworld.coursestools.dto.user.UpdateUserDiscordDto;
 import com.winworld.coursestools.dto.user.UpdateUserTelegramDto;
 import com.winworld.coursestools.dto.user.UpdateUserTradingViewDto;
 import com.winworld.coursestools.dto.user.UserReadDto;
+import com.winworld.coursestools.entity.subscription.SubscriptionType;
+import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.AlertService;
+import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.TokenService;
+import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.external.OAuthDiscordService;
 import com.winworld.coursestools.validation.validator.UserValidator;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +34,9 @@ public class UserSocialService {
     private final UserValidator userValidator;
     private final OAuthDiscordService oAuthDiscordService;
     private final AlertService alertService;
+    private final ActivatingSubscriptionService activatingSubscriptionService;
+    private final SubscriptionService subscriptionService;
+    private final UserSubscriptionService userSubscriptionService;
 
     @Value("${urls.telegram-bot}")
     private String urlTelegramBot;
@@ -50,7 +61,18 @@ public class UserSocialService {
         var user = userDataService.getUserById(userId);
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
         user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
-        return userMapper.toDto(userDataService.save(user));
+        SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        UserSubscription userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
+                user.getId(), subscriptionType.getId()
+        ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
+        var changeNameDto = new ChangeTradingViewNameDto(
+                user.getSocial().getTradingViewName(),
+                dto.getTradingViewName().toLowerCase(),
+                userSubscription.getExpiredAt()
+        );
+        var savedUser = userDataService.save(user);
+        activatingSubscriptionService.changeTradingViewUsername(changeNameDto);
+        return userMapper.toDto(savedUser);
     }
 
     public UserReadDto bindUserDiscord(UpdateUserDiscordDto dto, int userId) {

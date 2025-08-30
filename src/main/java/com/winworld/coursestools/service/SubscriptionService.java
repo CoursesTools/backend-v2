@@ -1,6 +1,6 @@
 package com.winworld.coursestools.service;
 
-import com.winworld.coursestools.dto.external.ActivateSubscriptionDto;
+import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
 import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
@@ -259,8 +259,8 @@ public class SubscriptionService {
         ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
-        activatingSubscriptionService.activateSubscription(
-                new ActivateSubscriptionDto(user.getEmail(), dto.getUsername(), expiration)
+        activatingSubscriptionService.activateTradingViewAccess(
+                new ActivateTradingViewAccessDto(user.getEmail(), dto.getUsername(), expiration)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }

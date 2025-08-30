@@ -1,6 +1,6 @@
 package com.winworld.coursestools.listener;
 
-import com.winworld.coursestools.dto.external.ActivateSubscriptionDto;
+import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
 import com.winworld.coursestools.enums.SubscriptionEventType;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.event.SubscriptionChangeStatusEvent;
@@ -8,11 +8,8 @@ import com.winworld.coursestools.messaging.MessageBuilder;
 import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.EmailService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
@@ -45,9 +42,9 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
             return;
         }
         var userSubscription = userSubscriptionService.getUserSubById(event.getUserSubscriptionId());
-        ActivateSubscriptionDto dto = new ActivateSubscriptionDto(
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 event.getEmail(), event.getTradingViewUsername(), userSubscription.getExpiredAt());
-        activatingSubscriptionService.activateSubscription(dto);
+        activatingSubscriptionService.activateTradingViewAccess(dto);
         userSubscription.setStatus(SubscriptionStatus.GRANTED);
         userSubscriptionService.save(userSubscription);
     }

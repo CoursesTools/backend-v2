@@ -8,9 +8,10 @@ import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
-public class ActivateSubscriptionDto {
-    private String email;
-    @JsonProperty(value = "tv")
-    private String tradingViewName;
+public class ChangeTradingViewNameDto {
+    @JsonProperty("old")
+    private String oldName;
+    @JsonProperty("new")
+    private String newName;
     private LocalDateTime expiration;
 }

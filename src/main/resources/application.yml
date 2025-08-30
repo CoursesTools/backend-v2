@@ -18,9 +18,9 @@ spring:
       password: ${REDIS_PASSWORD}
 
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: none
+    open-in-view: false
 
   config.import:
       - classpath:configs/partnership.yml
@@ -83,6 +83,7 @@ urls:
   web-recovery: ${WEB_CLIENT_URL}${WEB_RECOVERY_URL}
   withdrawal: ${WITHDRAWAL_URL}
   activating-bot: ${ACTIVATING_BOT_URL}
+  change-tradingview-bot: ${CHANGE_TRADINGVIEW_BOT_URL}
   telegram-bot: ${TELEGRAM_BOT_URL}
 
 cookie:
