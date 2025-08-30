@@ -48,9 +48,12 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/coursestools/backend:latest
+          tags: |
+            ghcr.io/coursestools/backend:latest
+            ghcr.io/coursestools/backend:${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/coursestools/backend:buildcache
           cache-to: type=registry,ref=ghcr.io/coursestools/backend:buildcache,mode=max
+          no-cache: false
 
   deploy:
     runs-on: ubuntu-latest
