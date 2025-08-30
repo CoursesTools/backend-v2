@@ -11,7 +11,6 @@ public class WithdrawRequestDto {
     private String wallet;
     //In Usd
     private BigDecimal amount;
-    private String secret;
     private int transactionId;
     private Currency currency;
 }

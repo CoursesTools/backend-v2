@@ -88,10 +88,6 @@ urls:
 cookie:
   domain: ${COOKIE_DOMAIN}
 
-secrets:
-  withdrawal-secret: ${WITHDRAWAL_SECRET}
-  activate-subscription-secret: ${ACTIVATE_SUBSCRIPTION_SECRET}
-
 tokens:
   password-reset:
     lifetime: 2m

@@ -39,9 +39,6 @@ public class UserTransactionService {
     @Value("${urls.withdrawal}")
     private String withdrawalUrl;
 
-    @Value("${secrets.withdrawal-secret}")
-    private String withdrawalSecret;
-
     public TransactionsAmountDto getTransactionSumAmount(TransactionType transactionType, LocalDate startDate, LocalDate endDate) {
         BigDecimal amount;
         var startDateTime = startDate != null ? startDate.atStartOfDay() : null;
@@ -90,7 +87,7 @@ public class UserTransactionService {
         user.getFinance().addBalance(dto.getAmount().negate());
         var transaction = addTransaction(new TransactionCreateDto(user, dto.getAmount(), TransactionType.WITHDRAWAL, null));
 
-        WithdrawRequestDto withdrawalRequest = transactionMapper.toDto(transaction, dto.getWallet(), withdrawalSecret);
+        WithdrawRequestDto withdrawalRequest = transactionMapper.toDto(transaction, dto.getWallet());
         withdrawalRequest.setAmount(getPriceInUsd(dto.getAmount()));
         requestWithdrawal(withdrawalRequest);
 

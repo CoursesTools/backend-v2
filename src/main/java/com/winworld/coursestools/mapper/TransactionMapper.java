@@ -19,7 +19,7 @@ public interface TransactionMapper {
     @Mapping(target = "currency", expression = "java(com.winworld.coursestools.enums.Currency.USD)")
     @Mapping(target = "amount", ignore = true)
     @Mapping(target = "email", source = "transaction.user.email")
-    WithdrawRequestDto toDto(UserTransaction transaction, String wallet, String secret);
+    WithdrawRequestDto toDto(UserTransaction transaction, String wallet);
 
     UserTransaction toEntity(TransactionCreateDto dto);
 }
