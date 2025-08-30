@@ -20,7 +20,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    open-in-view: false
 
   config.import:
       - classpath:configs/partnership.yml
