@@ -19,7 +19,7 @@ public class ActivatingSubscriptionService {
     @Value("${urls.activating-bot}")
     private String activatingBotUrl;
 
-    @Value("${urls.change-tradingview-bot-bot}")
+    @Value("${urls.change-tradingview-bot}")
     private String changeTradingViewBotUrl;
 
     @Retry(name = "default", fallbackMethod = "handleFallback")
