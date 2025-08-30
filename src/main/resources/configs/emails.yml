@@ -10,6 +10,9 @@ spring:
           auth: true
           starttls:
             enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
 
 emails:
   send-password:

@@ -49,7 +49,7 @@ public class UserSocialService {
     public UserReadDto bindUserTradingView(UpdateUserTradingViewDto dto, int userId) {
         var user = userDataService.getUserById(userId);
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
-        user.getSocial().setTradingViewName(dto.getTradingViewName());
+        user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
         return userMapper.toDto(userDataService.save(user));
     }
 
