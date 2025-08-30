@@ -4,17 +4,16 @@ import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UsersSubscriptionsFilterDto;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
-import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
-import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,6 +43,10 @@ public class UserSubscriptionService {
 
     public List<UserSubscription> findAllExpiredSubscriptionsByStatus(SubscriptionStatus status) {
         return userSubscriptionRepository.findAllWithExpiredSubscriptionsByStatus(status);
+    }
+
+    public List<UserSubscription> findExpiredSubscriptionsOlderThanDate(LocalDateTime cutoffDate, SubscriptionStatus status) {
+        return userSubscriptionRepository.findExpiredSubscriptionsOlderThanDays(cutoffDate, status);
     }
 
     public List<UserSubscription> findAllWithExpiredTrialSubscription() {

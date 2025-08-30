@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,4 +50,13 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             AND us.isTrial = true
             """)
     List<UserSubscription> findAllWithExpiredTrialSubscription();
+
+    @Query(value = """
+        SELECT us
+        FROM UserSubscription us
+        WHERE us.expiredAt <= :cutoffDate
+          AND us.status = :status
+        """)
+    List<UserSubscription> findExpiredSubscriptionsOlderThanDays(LocalDateTime cutoffDate, SubscriptionStatus status);
+
 }

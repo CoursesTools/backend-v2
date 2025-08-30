@@ -53,6 +53,7 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 @Slf4j
 public class SubscriptionService {
     public static final int PAYMENT_GRACE_DAYS = 1;
+    public static final int GRACE_PERIOD_DAYS = 7;
 
     private final UserDataService userDataService;
     private final UserMapper userMapper;
@@ -144,8 +145,9 @@ public class SubscriptionService {
 
     @Transactional
     public void deactivateExpiredGracePeriodSubscriptions() {
+        var cutoffDate = getNow().minusDays(GRACE_PERIOD_DAYS);
         List<UserSubscription> usersSubscriptions = userSubscriptionService
-                .findAllExpiredSubscriptionsByStatus(GRACE_PERIOD);
+                .findExpiredSubscriptionsOlderThanDate(cutoffDate, GRACE_PERIOD);
         usersSubscriptions.forEach(userSubscription -> {
             userSubscription.setStatus(TERMINATED);
             User user = userSubscription.getUser();
