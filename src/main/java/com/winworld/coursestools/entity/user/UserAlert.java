@@ -1,25 +1,12 @@
 package com.winworld.coursestools.entity.user;
 
 import com.winworld.coursestools.entity.Alert;
-import com.winworld.coursestools.entity.base.BaseEntity;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
+import jakarta.persistence.*;
+import lombok.*;
 import org.hibernate.annotations.Type;
-import org.hibernate.type.SqlTypes;
 
 import java.util.Map;
-
-import static jakarta.persistence.FetchType.LAZY;
 
 @Getter
 @Setter
@@ -28,20 +15,24 @@ import static jakarta.persistence.FetchType.LAZY;
 @Builder
 @Entity
 @Table(name = "users_alerts")
-public class UserAlert extends BaseEntity {
+public class UserAlert {
     public static final String ALERT = "alert";
     public static final String USER = "user";
 
-    @ManyToOne(fetch = LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @EmbeddedId
+    private UserAlertId id;
+
+    @MapsId("userId")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne(fetch = LAZY)
-    @JoinColumn(name = "alert_id", nullable = false)
+    @MapsId("alertId")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "alert_id")
     private Alert alert;
 
     @Type(JsonBinaryType.class)
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "properties", columnDefinition = "jsonb")
+    @Column(columnDefinition = "jsonb")
     private Map<String, Object> properties;
 }

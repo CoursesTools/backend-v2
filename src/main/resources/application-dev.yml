@@ -2,9 +2,20 @@ spring:
   config:
     activate:
       on-profile: dev
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT:5432}/${POSTGRES_DB_NAME}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
 
-  jpa:
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: false
+decorator:
+  datasource:
+    datasource-proxy:
+      logging: slf4j
+      multiline: true
+      json-format: false
+
+logging:
+  level:
+    net.ttddyy.dsproxy.listener: DEBUG
+    com.github.gavlyukovskiy.boot.jdbc.decorator.datasource: DEBUG

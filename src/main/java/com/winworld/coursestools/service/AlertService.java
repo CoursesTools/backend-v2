@@ -11,6 +11,7 @@ import com.winworld.coursestools.entity.Alert;
 import com.winworld.coursestools.entity.base.BaseEntity;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserAlert;
+import com.winworld.coursestools.entity.user.UserAlertId;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.mapper.AlertMapper;
@@ -20,6 +21,7 @@ import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.specification.alert.AlertSpecification;
 import com.winworld.coursestools.specification.alert.UserAlertSpecification;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -27,9 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ public class AlertService {
     private final UserAlertSpecification userAlertSpecification;
     private final UserSubscriptionService userSubscriptionService;
     private final SubscriptionService subscriptionService;
+    private final EntityManager entityManager;
 
     public PageDto<AlertReadDto> getAlertsByFilter(int userId, AlertFilterDto filterDto, Pageable pageable) {
         checkUserSubscription(userId);
@@ -71,57 +74,78 @@ public class AlertService {
     public CountDto subscribeOnAlerts(int userId, AlertSubscribeDto dto) {
         checkUserSubscription(userId);
         User user = userDataService.getUserById(userId);
+
+        // 1. Находим все алерты по фильтру
         Specification<Alert> specification = alertSpecification.from(dto);
         List<Alert> alerts = alertRepository.findAll(specification);
-        List<UserAlert> existingAlerts = userAlertRepository.findByUserIdAndAlertsIds(
-                userId, alerts.stream().map(BaseEntity::getId).toList()
-        );
-        Map<Integer, UserAlert> existingAlertsMap = existingAlerts.stream()
-                .collect(Collectors.toMap(
-                        userAlert -> userAlert.getAlert().getId(),
-                        userAlert -> userAlert
-                ));
 
-        List<UserAlert> toCreate = new ArrayList<>();
+        if (alerts.isEmpty()) {
+            return new CountDto(0);
+        }
+
+        // 2. Одним запросом получаем существующие связи
+        List<Integer> alertIds = alerts.stream()
+                .map(BaseEntity::getId)
+                .toList();
+
+        // 3. Разделяем на update и insert
         List<UserAlert> toUpdate = new ArrayList<>();
+        List<UserAlert> toInsert = new ArrayList<>();
+
+        List<UserAlertId> existingIds = userAlertRepository
+                .findIdsByUserIdAndAlertIds(userId, alertIds);
+
+        Set<UserAlertId> existingIdSet = new HashSet<>(existingIds);
 
         for (Alert alert : alerts) {
-            UserAlert existingAlert = existingAlertsMap.get(alert.getId());
-            if (existingAlert != null) {
-                existingAlert.setProperties(dto.getProperties());
-                toUpdate.add(existingAlert);
+            UserAlertId id = new UserAlertId(user.getId(), alert.getId());
+            if (existingIdSet.contains(id)) {
+                // UPDATE
+                UserAlert ua = new UserAlert();
+                ua.setId(id);
+                ua.setUser(user);
+                ua.setAlert(alert);
+                ua.setProperties(dto.getProperties());
+                toUpdate.add(ua);
             } else {
-                toCreate.add(UserAlert.builder()
-                        .user(user)
-                        .alert(alert)
-                        .properties(dto.getProperties())
-                        .build());
+                // INSERT
+                UserAlert ua = new UserAlert();
+                ua.setId(id);
+                ua.setUser(user);
+                ua.setAlert(alert);
+                ua.setProperties(dto.getProperties());
+                toInsert.add(ua);
             }
         }
 
+
+        // 4. Сохраняем батчами
         if (!toUpdate.isEmpty()) {
-            userAlertRepository.saveAll(toUpdate);
+            userAlertRepository.saveAll(toUpdate); // Hibernate сделает batch UPDATE
         }
 
-        if (!toCreate.isEmpty()) {
-            userAlertRepository.saveAll(toCreate);
+        if (!toInsert.isEmpty()) {
+            // persist вместо merge → Hibernate не делает SELECT перед INSERT
+            toInsert.forEach(entityManager::persist);
+            entityManager.flush(); // отправляем батч INSERT
         }
 
-        return new CountDto(toUpdate.size() + toCreate.size());
+        return new CountDto(toUpdate.size() + toInsert.size());
     }
+
 
     @Transactional
     public void unSubscribeOnAlerts(int userId, List<Integer> alertsIds) {
         checkUserSubscription(userId);
-        List<UserAlert> userAlerts = userAlertRepository.findByUserIdAndAlertsIds(userId, alertsIds);
-        if (userAlerts.size() != alertsIds.size()) {
+        List<UserAlertId> userAlertIds = userAlertRepository.findIdsByUserIdAndAlertIds(userId, alertsIds);
+        if (userAlertIds.size() != alertsIds.size()) {
             List<Integer> notSubscribedAlerts = alertsIds.stream()
-                    .filter(id -> userAlerts.stream()
-                            .noneMatch(userAlert -> userAlert.getId().equals(id)))
+                    .filter(id -> userAlertIds.stream()
+                            .noneMatch(userAlertId -> userAlertId.getAlertId().equals(id)))
                     .toList();
             throw new ConflictException("You not subscribe on alerts: " + notSubscribedAlerts);
         }
-        userAlertRepository.deleteAll(userAlerts);
+        userAlertRepository.deleteAllById(userAlertIds);
     }
 
     @Transactional
@@ -138,13 +162,11 @@ public class AlertService {
         checkUserSubscription(userId);
         var types = alertRepository.getAllTypes(isMulti);
         AlertSubscriptionCategoriesDto categories = new AlertSubscriptionCategoriesDto();
-        types.forEach(type -> {
-            categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
-                    type,
-                    alertRepository.getAllAssetsByType(type, isMulti),
-                    alertRepository.getAllBrokersByType(type, isMulti)
-            ));
-        });
+        types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
+                type,
+                alertRepository.getAllAssetsByType(type, isMulti),
+                alertRepository.getAllBrokersByType(type, isMulti)
+        )));
         categories.setEvents(alertRepository.getAllEvents(isMulti));
         categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
         return categories;

@@ -40,6 +40,7 @@ val jacksonNullableVersion = "0.2.6"
 val wireMockVersion = "3.12.1"
 val testContainersRedisVersion = "2.2.2"
 val logbackEncoderVersion = 7.4
+val datasourceProxyVersion = "1.9.1"
 dependencies {
     /**
     Spring starters
@@ -53,7 +54,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-
+    implementation("com.github.gavlyukovskiy:datasource-proxy-spring-boot-starter:${datasourceProxyVersion}")
     /**
     Security
      */
