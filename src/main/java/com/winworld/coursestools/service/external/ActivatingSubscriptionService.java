@@ -42,4 +42,11 @@ public class ActivatingSubscriptionService {
                   dto.getTradingViewName(), dto.getExpiration(), throwable);
         throw new ExternalServiceException("Failed to activate subscription");
     }
+
+    public void handleFallback(ChangeTradingViewNameDto dto, Throwable throwable) {
+        //TODO сделать алерт
+        log.error("Failed to change trading view name from {} to {}, expiration: {}",
+                dto.getOldName(), dto.getNewName(), dto.getExpiration(), throwable);
+        throw new ExternalServiceException("Failed to activate subscription");
+    }
 }

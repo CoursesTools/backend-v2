@@ -45,7 +45,7 @@ public abstract class AbstractJwtTokenUtil {
         return extractAllClaims(token).get(claim, type);
     }
 
-    private final Claims extractAllClaims(String token) {
+    private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
