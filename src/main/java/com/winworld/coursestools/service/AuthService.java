@@ -11,6 +11,7 @@ import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserFinance;
 import com.winworld.coursestools.entity.user.UserPartnership;
 import com.winworld.coursestools.entity.user.UserProfile;
+import com.winworld.coursestools.entity.user.UserSocial;
 import com.winworld.coursestools.enums.UserRole;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.mapper.AuthMapper;
@@ -61,10 +62,11 @@ public class AuthService {
     @Transactional
     public AuthTokensDto signup(BasicAuthSignUpDto dto, String forwardedFor) {
         authValidator.validateSignUp(dto);
+
         var user = authMapper.toEntity(dto);
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
 
-        User savedUser = setupAndSaveUser(user, dto.getReferrerCode());
+        User savedUser = setupAndSaveUser(user, dto.getReferrerCode(), dto.getTradingViewName());
 
         eventPublisher.publishEvent(
                 userMapper.toEvent(savedUser, forwardedFor)
@@ -85,7 +87,7 @@ public class AuthService {
         var password = stringGeneratorUtil.generatePassword();
         user.setPassword(passwordEncoder.encode(password));
 
-        User savedUser = setupAndSaveUser(user, dto.getReferrerCode());
+        User savedUser = setupAndSaveUser(user, dto.getReferrerCode(), dto.getTradingViewName());
 
         eventPublisher.publishEvent(
                 userMapper.toEvent(savedUser, forwardedFor, password)
@@ -93,21 +95,24 @@ public class AuthService {
         return generateAuthTokens(savedUser.getId(), savedUser.getRole());
     }
 
-    private User setupAndSaveUser(User user, String referrerCode) {
+    private User setupAndSaveUser(User user, String referrerCode, String tradingViewName) {
         var userProfile = new UserProfile();
         var userPartnership = new UserPartnership();
         var userFinance = new UserFinance();
+        var userSocial = new UserSocial();
 
         user.setRole(UserRole.USER);
         userPartnership.setLevel(0);
+        userSocial.setTradingViewName(tradingViewName);
 
         userPartnership.setUser(user);
         userProfile.setUser(user);
         userFinance.setUser(user);
-        user.getSocial().setUser(user);
+        userSocial.setUser(user);
         user.setProfile(userProfile);
         user.setPartnership(userPartnership);
         user.setFinance(userFinance);
+        user.setSocial(userSocial);
 
         User savedUser = userDataService.save(user);
         if (referrerCode != null) {
