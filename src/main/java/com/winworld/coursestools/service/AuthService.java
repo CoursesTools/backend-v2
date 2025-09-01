@@ -119,14 +119,14 @@ public class AuthService {
     }
 
     public AuthTokensDto signIn(BasicAuthSignInDto dto) {
-        User user = userDataService.getUserByEmail(dto.getEmail());
+        User user = userDataService.getUserByEmail(dto.getEmail().toLowerCase());
         authValidator.validateSignIn(dto, user.getPassword());
         return generateAuthTokens(user.getId(), user.getRole());
     }
 
     public AuthTokensDto googleSignIn(GoogleAuthSignInDto dto) {
         var googleUserInfo = oAuthGoogleService.getUserInfo(dto.getAuthorizationCode());
-        User user = userDataService.getUserByEmail(googleUserInfo.getEmail());
+        User user = userDataService.getUserByEmail(googleUserInfo.getEmail().toLowerCase());
         return generateAuthTokens(user.getId(), user.getRole());
     }
 

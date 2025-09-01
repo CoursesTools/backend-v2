@@ -12,12 +12,12 @@ import static org.mapstruct.ReportingPolicy.WARN;
 public interface AuthMapper {
 
     @Mapping(target = "password", ignore = true)
-    @Mapping(source = "tradingViewName", target = "social.tradingViewName")
-    @Mapping(source = "email", target = "email")
+    @Mapping(target = "social.tradingViewName", expression = "java(dto.getTradingViewName().toLowerCase())")
+    @Mapping(target = "email", expression = "java(dto.getEmail().toLowerCase())")
     User toEntity(BasicAuthSignUpDto dto);
 
     @Mapping(target = "password", ignore = true)
-    @Mapping(source = "dto.tradingViewName", target = "social.tradingViewName")
-    @Mapping(source = "email", target = "email")
+    @Mapping(target = "social.tradingViewName", expression = "java(dto.getTradingViewName().toLowerCase())")
+    @Mapping(target = "email", expression = "java(dto.getEmail().toLowerCase())")
     User toEntity(GoogleAuthSignUpDto dto, String email);
 }

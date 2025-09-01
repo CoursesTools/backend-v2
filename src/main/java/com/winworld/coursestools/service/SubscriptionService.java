@@ -74,7 +74,7 @@ public class SubscriptionService {
     }
 
     public SubscriptionPlan getSubscriptionPlan(int planId) {
-        return subscriptionPlanRepository.findById(planId).orElseThrow(
+        return subscriptionPlanRepository.findByIdJoinSubscriptionType(planId).orElseThrow(
                 () -> new EntityNotFoundException("Subscription plan not found")
         );
     }
