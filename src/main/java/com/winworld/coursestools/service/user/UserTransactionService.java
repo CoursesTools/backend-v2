@@ -89,19 +89,20 @@ public class UserTransactionService {
 
         WithdrawRequestDto withdrawalRequest = transactionMapper.toDto(transaction, dto.getWallet());
         withdrawalRequest.setAmount(getPriceInUsd(dto.getAmount()));
-        requestWithdrawal(withdrawalRequest);
+        String response = requestWithdrawal(withdrawalRequest);
 
-        log.info("Withdrawal request processed for transaction: {}", transaction.getId());
+        log.info("Withdrawal request processed for transaction: {}, response: {}", transaction.getId(), response);
         return transactionMapper.toDto(transaction);
     }
 
     @Retry(name = "client-error-included", fallbackMethod = "handleFallback")
-    private void requestWithdrawal(WithdrawRequestDto dto) {
-        restTemplate.postForObject(
+    private String requestWithdrawal(WithdrawRequestDto dto) {
+        var response = restTemplate.postForEntity(
                 withdrawalUrl,
                 dto,
-                Void.class
+                String.class
         );
+        return response.getBody();
     }
 
     private String handleFallback(WithdrawRequestDto dto, Throwable throwable) {
