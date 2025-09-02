@@ -24,10 +24,12 @@ import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.PaymentMethod;
+import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
 import com.winworld.coursestools.exception.exceptions.PaymentProcessingException;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.service.payment.PaymentService;
+import com.winworld.coursestools.service.user.UserDataService;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.CHECKOUT__SESSION__COMPLETED;
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
@@ -108,7 +111,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
 
     @Override
     public ProcessPaymentDto processPayment(StripeRetrieveDto paymentRequest) {
-        Session invoice = parseInvoiceFromWebhook(paymentRequest);
+        Invoice invoice = parseInvoiceFromWebhook(paymentRequest);
         Map<String, Object> paymentData = Map.of(
                 CUSTOMER_ID, invoice.getCustomer(),
                 SUBSCRIPTION_ID, invoice.getSubscription()
@@ -119,12 +122,12 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 .build();
     }
 
-    private Integer getOrderIdFromInvoice(Session invoice) {
-        String orderId = invoice.getMetadata().get("order_id");
+    private Integer getOrderIdFromInvoice(Invoice invoice) {
+        String orderId = invoice.getLines().getData().get(0).getMetadata().get("order_id");
         return Integer.parseInt(orderId);
     }
 
-    private Session parseInvoiceFromWebhook(StripeRetrieveDto paymentRequest) {
+    private Invoice parseInvoiceFromWebhook(StripeRetrieveDto paymentRequest) {
         try {
             Event event = Webhook.constructEvent(
                     paymentRequest.getPayload(),
@@ -132,13 +135,13 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                     properties.webhookSecret()
             );
 
-//            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue()) && !event.getType().equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
-//                throw new PaymentProcessingException(
-//                        "Invalid event type: " + event.getType()
-//                );
-//            }
+            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue()) && !event.getType().equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
+                throw new PaymentProcessingException(
+                        "Invalid event type: " + event.getType()
+                );
+            }
             EventDataObjectDeserializer dataObjectDeserializer = event.getDataObjectDeserializer();
-            return (Session) dataObjectDeserializer.deserializeUnsafe();
+            return (Invoice) dataObjectDeserializer.deserializeUnsafe();
         } catch (SignatureVerificationException e) {
             throw new SecurityException(e.getMessage());
         } catch (EventDataObjectDeserializationException e) {
