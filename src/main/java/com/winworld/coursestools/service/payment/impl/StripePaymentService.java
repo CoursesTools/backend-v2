@@ -135,7 +135,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                     properties.webhookSecret()
             );
 
-            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue()) && !event.getType().equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
+            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue()) || !event.getType().equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
                 throw new PaymentProcessingException(
                         "Invalid event type: " + event.getType()
                 );
