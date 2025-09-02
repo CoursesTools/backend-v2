@@ -39,7 +39,6 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.CHECKOUT__SESSION__COMPLETED;
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
 
 @Service
@@ -135,7 +134,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                     properties.webhookSecret()
             );
 
-            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue()) || !event.getType().equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
+            if (!event.getType().equals(INVOICE__PAYMENT_SUCCEEDED.getValue())) {
                 throw new PaymentProcessingException(
                         "Invalid event type: " + event.getType()
                 );
