@@ -87,7 +87,8 @@ public class OrderService {
                 .plan(plan)
                 .status(OrderStatus.PENDING)
                 .orderType(createDto.getPaymentMethod().equals(PaymentMethod.STRIPE)
-                        ? OrderType.RECURRENT : OrderType.ONE_TIME)
+                        ? OrderType.RECURRENT : OrderType.ONE_TIME
+                )
                 .build();
 
         paymentValidators.stream()
