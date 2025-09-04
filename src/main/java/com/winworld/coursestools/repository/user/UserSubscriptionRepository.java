@@ -1,5 +1,6 @@
 package com.winworld.coursestools.repository.user;
 
+import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -52,11 +53,19 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     List<UserSubscription> findAllWithExpiredTrialSubscription();
 
     @Query(value = """
-        SELECT us
-        FROM UserSubscription us
-        WHERE us.expiredAt <= :cutoffDate
-          AND us.status = :status
-        """)
+            SELECT us
+            FROM UserSubscription us
+            WHERE us.expiredAt <= :cutoffDate
+              AND us.status = :status
+            """)
     List<UserSubscription> findExpiredSubscriptionsOlderThanDays(LocalDateTime cutoffDate, SubscriptionStatus status);
 
+    @Query("""
+                SELECT us.plan.name AS plan, COUNT(us) AS count
+                FROM UserSubscription us
+                WHERE us.createdAt <= :targetDate
+                  AND us.expiredAt >= :targetDate
+                GROUP BY us.plan.name
+            """)
+    List<PlanSubscriptionCount> countActiveSubscriptionsOnDate(LocalDateTime targetDate);
 }

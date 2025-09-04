@@ -1,7 +1,6 @@
 package com.winworld.coursestools.service.user;
 
 import com.winworld.coursestools.entity.user.User;
-import com.winworld.coursestools.entity.user.UserSocial;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.repository.user.UserRepository;
 import com.winworld.coursestools.repository.user.UserSocialRepository;

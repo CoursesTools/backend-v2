@@ -1,6 +1,7 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
+import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
@@ -10,6 +11,7 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -17,6 +19,7 @@ import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.subscription.SubscriptionPlanRepository;
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
+import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
@@ -29,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -64,6 +68,7 @@ public class SubscriptionService {
     private final UserSubscriptionService userSubscriptionService;
     private final StripePaymentService stripePaymentService;
     private final ActivatingSubscriptionService activatingSubscriptionService;
+    private final UserSubscriptionRepository userSubscriptionRepository;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -263,5 +268,9 @@ public class SubscriptionService {
                 new ActivateTradingViewAccessDto(user.getEmail(), dto.getUsername(), expiration)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
+    }
+
+    public List<PlanSubscriptionCount> getActiveUsersCountOnDateWithPlan(LocalDate date) {
+        return userSubscriptionRepository.countActiveSubscriptionsOnDate(date.atStartOfDay());
     }
 }

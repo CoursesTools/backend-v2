@@ -37,8 +37,8 @@ public class AuthController {
     @Value("${jwt.refreshLifeTime}")
     private Duration refreshLifeTime;
 
-    @Value("${cookie.domain}")
-    private String cookieDomain;
+    @Value("${cors.domains.web}")
+    private String webDomain;
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
@@ -116,7 +116,7 @@ public class AuthController {
                 .httpOnly(true)
                 .maxAge(refreshLifeTime)
                 .sameSite("None")
-                .domain("." + cookieDomain)
+                .domain("." + webDomain)
                 .path("/")
                 .secure(true)
                 .build();
