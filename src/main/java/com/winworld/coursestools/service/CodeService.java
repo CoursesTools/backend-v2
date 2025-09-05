@@ -2,6 +2,7 @@ package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.config.props.PartnershipProps;
 import com.winworld.coursestools.dto.code.CodeReadDto;
+import com.winworld.coursestools.dto.code.PromoCodeCreateDto;
 import com.winworld.coursestools.entity.Code;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.DiscountType;
@@ -9,6 +10,7 @@ import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.CodeMapper;
 import com.winworld.coursestools.repository.CodeRepository;
+import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.util.StringGeneratorUtil;
 import com.winworld.coursestools.validation.validator.CodeValidator;
@@ -16,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class CodeService {
     private final CodeMapper codeMapper;
     private final ReferralService referralService;
     private final PartnershipService partnershipService;
+    private final StripePaymentService stripePaymentService;
 
     public void createPartnerCode(User user) {
         Code code = Code.builder()
@@ -38,6 +44,19 @@ public class CodeService {
                 .discountValue(partnershipProps.getDiscount())
                 .build();
         codeRepository.save(code);
+    }
+
+    @Transactional
+    public CodeReadDto createPromoCode(PromoCodeCreateDto createDto) {
+        Code code = codeMapper.toEntity(createDto);
+        if (createDto.getDiscountType().equals(DiscountType.PERCENTAGE)) {
+            stripePaymentService.createPercentageCoupon(createDto.getCode(), createDto.getDiscountValue().toBigInteger().longValue());
+        } else {
+            stripePaymentService.createFixedAmountCoupon(createDto.getCode(), createDto.getDiscountValue().toBigInteger().longValue());
+        }
+        var newCode = codeRepository.save(code);
+        log.info("Promo code with id={} created", newCode.getId());
+        return codeMapper.toDto(newCode);
     }
 
     public boolean existsByUserIdAndPromoCodeId(int userId, int codeId) {
@@ -72,7 +91,7 @@ public class CodeService {
     }
 
     public Code getCodeByValue(String code) {
-        return codeRepository.findByCode(code)
+        return codeRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new EntityNotFoundException("Promo code not found"));
     }
 }

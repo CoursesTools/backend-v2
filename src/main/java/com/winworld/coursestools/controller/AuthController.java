@@ -7,6 +7,7 @@ import com.winworld.coursestools.dto.auth.GoogleAuthSignInDto;
 import com.winworld.coursestools.dto.auth.GoogleAuthSignUpDto;
 import com.winworld.coursestools.dto.recovery.RecoveryDto;
 import com.winworld.coursestools.facade.AuthFacade;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -88,6 +89,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<AuthTokensDto> refresh(
+            @Parameter(hidden = true)
             @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME) String refreshToken
     ) {
         return createAuthResponse(authFacade.refresh(refreshToken));

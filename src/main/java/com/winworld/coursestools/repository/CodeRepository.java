@@ -11,8 +11,6 @@ import java.util.Optional;
 @Repository
 public interface CodeRepository extends JpaRepository<Code, String> {
 
-    Optional<Code> findByCode(String code);
-
     @Query(value = """
             SELECT EXISTS (
                     SELECT 1 FROM codes_usages
@@ -37,4 +35,6 @@ public interface CodeRepository extends JpaRepository<Code, String> {
     void useCode(int codeId, int userId);
 
     boolean existsByCode(String code);
+
+    Optional<Code>  findByCodeIgnoreCase(String code);
 }

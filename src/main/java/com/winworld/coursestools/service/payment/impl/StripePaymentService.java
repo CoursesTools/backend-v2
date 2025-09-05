@@ -8,9 +8,11 @@ import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
+import com.stripe.model.Coupon;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import com.stripe.param.SubscriptionCancelParams;
+import com.stripe.param.CouponCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.param.checkout.SessionCreateParams.Discount;
 import com.stripe.param.checkout.SessionCreateParams.LineItem;
@@ -23,6 +25,7 @@ import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.Currency;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
@@ -37,7 +40,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.Objects;
+import java.math.BigDecimal;
 
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
 
@@ -88,6 +91,58 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
             resource.cancel(SubscriptionCancelParams.builder().build());
         } catch (StripeException e) {
             log.error("Failed to cancel Stripe subscription with ID: {}", stripeSubscriptionId, e);
+        }
+    }
+
+    /**
+     * Создает купон в Stripe с процентной скидкой
+     * @param couponId уникальный идентификатор купона
+     * @param percentOff процент скидки (например, 20 для 20% скидки)
+     * @return созданный купон
+     * @throws ExternalServiceException если не удалось создать купон
+     */
+    public Coupon createPercentageCoupon(String couponId, Long percentOff) {
+        try {
+            CouponCreateParams.Builder paramsBuilder = CouponCreateParams.builder()
+                    .setId(couponId.toUpperCase())
+                    .setPercentOff(BigDecimal.valueOf(percentOff))
+                    .setDuration(CouponCreateParams.Duration.ONCE);
+
+            CouponCreateParams params = paramsBuilder.build();
+            Coupon coupon = Coupon.create(params);
+
+            log.info("Successfully created Stripe coupon with ID: {}, discount: {}%", couponId, percentOff);
+            return coupon;
+        } catch (StripeException e) {
+            log.error("Failed to create Stripe coupon with ID: {}", couponId, e);
+            throw new ExternalServiceException("Failed to create coupon: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Создает купон с фиксированной суммой скидки
+     * @param couponId уникальный идентификатор купона
+     * @param amountOff сумма скидки в центах (например, 500 для $5.00)
+     * @return созданный купон
+     * @throws ExternalServiceException если не удалось создать купон
+     */
+    public Coupon createFixedAmountCoupon(String couponId, Long amountOff) {
+        try {
+            CouponCreateParams.Builder paramsBuilder = CouponCreateParams.builder()
+                    .setId(couponId.toUpperCase())
+                    .setAmountOff(amountOff)
+                    .setCurrency(Currency.USD.name().toLowerCase())
+                    .setDuration(CouponCreateParams.Duration.ONCE);
+
+
+            CouponCreateParams params = paramsBuilder.build();
+            Coupon coupon = Coupon.create(params);
+
+            log.info("Successfully created Stripe fixed amount coupon with ID: {}, discount: {}", couponId, amountOff);
+            return coupon;
+        } catch (StripeException e) {
+            log.error("Failed to create Stripe fixed amount coupon with ID: {}", couponId, e);
+            throw new ExternalServiceException("Failed to create fixed amount coupon: " + e.getMessage());
         }
     }
 
@@ -210,7 +265,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                     .build();
         } else {
             return Discount.builder()
-                    .setCoupon(dto.getCode())
+                    .setCoupon(dto.getCode().toUpperCase())
                     .build();
         }
     }
