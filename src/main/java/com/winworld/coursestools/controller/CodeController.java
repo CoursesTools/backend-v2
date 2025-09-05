@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/v1/codes")
 public class CodeController {
@@ -34,5 +36,11 @@ public class CodeController {
     @PreAuthorize("hasRole('ADMIN')")
     public CodeReadDto createPromoCode(@RequestBody @Valid PromoCodeCreateDto createDto) {
         return codeService.createPromoCode(createDto);
+    }
+
+    @GetMapping("/promo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<CodeReadDto> getAllPromoCodes() {
+        return codeService.getAllPromoCodes();
     }
 }

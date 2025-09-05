@@ -19,8 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -93,5 +92,11 @@ public class CodeService {
     public Code getCodeByValue(String code) {
         return codeRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new EntityNotFoundException("Promo code not found"));
+    }
+
+    public List<CodeReadDto> getAllPromoCodes() {
+        return codeRepository.findAllByOwner_IdNull().stream()
+                .map(codeMapper::toDto)
+                .toList();
     }
 }
