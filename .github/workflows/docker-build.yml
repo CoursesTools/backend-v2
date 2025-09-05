@@ -56,40 +56,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
-    permissions:
-      contents: read
-      packages: read
     steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull image from GHCR
-        run: docker pull ghcr.io/coursestools/backend:latest
-
-      - name: Save image to tar
-        run: docker save ghcr.io/coursestools/backend:latest -o backend.tar
-
-      - name: Copy image to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "backend.tar"
-          target: "/root/coursestools/backend.tar"
-
-      - name: Deploy on server
+      - name: Deploy backend to server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             cd /root/coursestools
-            docker load -i backend.tar
+            docker compose pull backend
             docker compose up -d backend
             docker image prune -f
