@@ -43,10 +43,17 @@ public class PayeerPaymentService extends PaymentService<PayeerRetrieveDto> {
 
     @Override
     public String createPaymentLink(CreatePaymentLinkDto dto) {
-        String amountInUsd = getPriceInUsd(dto.getTotalPrice()).toString();
+        Float amountInUsd = getPriceInUsd(dto.getTotalPrice());
+
+        String formattedAmount;
+        if (amountInUsd == Math.floor(amountInUsd)) {
+            formattedAmount = String.format("%.0f", amountInUsd);
+        } else {
+            formattedAmount = amountInUsd.toString();
+        }
 
         var createPaymentDto = PayeerCreatePaymentDto.builder()
-                .amount(amountInUsd)
+                .amount(formattedAmount)
                 .orderId(dto.getOrderId().toString())
                 .description(ENCODED_DESCRIPTION)
                 .currency(USD)

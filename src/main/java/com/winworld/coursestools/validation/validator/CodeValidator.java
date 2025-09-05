@@ -18,7 +18,7 @@ public class CodeValidator {
         if (code.getMaxUses() != null && codeRepository.countCodeUsages(code.getId()) >= code.getMaxUses()) {
             throw new ConflictException("Code has reached max uses");
         }
-        else if (code.getValidUntil() != null && code.getValidUntil().isBefore(LocalDate.now())) {
+        if (code.getValidUntil() != null && code.getValidUntil().isBefore(LocalDate.now())) {
             throw new ConflictException("Code is expired");
         }
 
