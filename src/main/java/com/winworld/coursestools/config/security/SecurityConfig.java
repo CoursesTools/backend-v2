@@ -50,6 +50,7 @@ public class SecurityConfig {
                     var corsConfiguration = new CorsConfiguration();
                     corsConfiguration.setAllowedOriginPatterns(List.of(
                             "https://*." + webDomain,
+                            "https://" + webDomain,
                             "http://localhost:*"
                     ));
                     corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
