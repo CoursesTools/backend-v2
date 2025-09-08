@@ -11,8 +11,10 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.SubscriptionMapper;
@@ -214,6 +216,31 @@ public class SubscriptionService {
         return userSubscriptionService.save(newSubscription);
     }
 
+    @Transactional
+    public UserSubscription createNewSubscription(
+            User user,
+            boolean isTrial,
+            LocalDate expiredAt
+    ) {
+        UserSubscription newSubscription = new UserSubscription();
+
+        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO).getPlans().get(0);
+
+        newSubscription.setPlan(plan);
+        newSubscription.setPrice(plan.getPrice());
+        newSubscription.setPaymentMethod(PaymentMethod.MANUAL);
+        newSubscription.setPaymentProviderData(null);
+        newSubscription.setIsTrial(isTrial);
+        newSubscription.setExpiredAt(expiredAt.atStartOfDay());
+
+        user.addSubscription(newSubscription);
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+                user.getEmail(), user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
+        activatingSubscriptionService.activateTradingViewAccess(dto);
+        newSubscription.setStatus(SubscriptionStatus.GRANTED);
+        return userSubscriptionService.save(newSubscription);
+    }
+
     private void updateGracePeriodSubscription(
             UserSubscription subscription,
             Order order,
@@ -229,6 +256,21 @@ public class SubscriptionService {
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setPlan(order.getPlan());
         subscription.setExpiredAt(expirationDate);
+    }
+
+    @Transactional
+    public void updateGracePeriodSubscription(
+            UserSubscription subscription,
+            User user,
+            LocalDate expiredAt
+    ) {
+        subscription.setStatus(PENDING);
+        subscription.setPaymentMethod(PaymentMethod.MANUAL);
+        subscription.setExpiredAt(expiredAt.atStartOfDay());
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+        activatingSubscriptionService.activateTradingViewAccess(dto);
+        subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 
     private void extendExistingSubscription(
@@ -249,6 +291,19 @@ public class SubscriptionService {
         subscription.setPaymentMethod(order.getPaymentMethod());
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setExpiredAt(expirationDate);
+    }
+
+    @Transactional
+    public void extendExistingSubscription(
+            UserSubscription subscription,
+            User user,
+            LocalDate expiredAt
+    ) {
+        subscription.setExpiredAt(expiredAt.atStartOfDay());
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+        activatingSubscriptionService.activateTradingViewAccess(dto);
+        subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 
     private LocalDateTime getNow() {

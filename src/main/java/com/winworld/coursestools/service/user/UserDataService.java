@@ -18,6 +18,24 @@ public class UserDataService {
     private final UserRepository userRepository;
     private final UserSocialRepository userSocialRepository;
 
+    public User getUserInfo(String tradingViewName, String email, Integer userId) {
+        if (email != null) {
+            return userRepository.findUserWithDetailsByEmail(email).orElseThrow(() -> new EntityNotFoundException(
+                    String.format(EMAIL_NOT_FOUND, email)
+            ));
+        }
+        else if (tradingViewName != null) {
+            return userRepository.findUserWithDetailsByTradingViewName(tradingViewName).orElseThrow(() -> new EntityNotFoundException(
+                    String.format(TRADING_VIEW_NAME_NOT_FOUND, tradingViewName)
+            ));
+        }
+        else {
+            return userRepository.findUserWithDetailsById(userId).orElseThrow(() -> new EntityNotFoundException(
+                    String.format(ID_NOT_FOUND, userId)
+            ));
+        }
+    }
+
     public User getUserByEmail(String email) {
         return userRepository.findUserByEmail(email)
                 .orElseThrow(() -> new EntityNotFoundException(

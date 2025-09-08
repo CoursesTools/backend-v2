@@ -1,5 +1,6 @@
 package com.winworld.coursestools.mapper;
 
+import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.user.UpdateUserDto;
 import com.winworld.coursestools.dto.user.UserReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
@@ -59,6 +60,18 @@ public interface UserMapper {
     @Mapping(target = "email", ignore = true)
     @Mapping(target = "partnership.termsAccepted", source = "dto.termsAccepted")
     void updateUserFromDto(UpdateUserDto dto, @MappingTarget User user);
+
+    @Mapping(target = "telegram", source = "social.telegramId")
+    @Mapping(target = "referrerId", source = "referred.referrer.id")
+    @Mapping(target = "partnershipLevel", source = "partnership.level")
+    @Mapping(target = "countryCode", source = "profile.countryCode")
+    @Mapping(target = "balance", source = "finance.balance")
+    @Mapping(target = "tradingViewName", source = "social.tradingViewName")
+    AdminUserReadDto toAdminDto(User user);
+
+    @Mapping(target = "plan", source = "plan.name")
+    @Mapping(target = "subscriptionName", source = "plan.subscriptionType.name")
+    AdminUserReadDto.AdminUserSubscriptionReadDto toAdminSubscriptionDto(UserSubscription userSubscription);
 
     default User map(int userId) {
         return new User(userId);
