@@ -65,7 +65,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
+            echo "${{ secrets.GHCP_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCP_USER }} --password-stdin
             cd /root/coursestools
             docker compose pull backend
             docker compose up -d backend
