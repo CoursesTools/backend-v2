@@ -151,12 +151,16 @@ public class AlertService {
                     .toList();
             throw new ConflictException("You not subscribe on alerts: " + notSubscribedAlerts);
         }
+        User user = userDataService.getUserById(userId);
+        eventPublisher.publishEvent(new UserAlertsChangeEvent(user.getSocial().getTelegramId()));
         userAlertRepository.deleteAllById(userAlertIds);
     }
 
     @Transactional
     public void unSubscribeOnAllAlerts(int userId) {
         userAlertRepository.deleteAllByUser_Id(userId);
+        User user = userDataService.getUserById(userId);
+        eventPublisher.publishEvent(new UserAlertsChangeEvent(user.getSocial().getTelegramId()));
     }
 
     public AlertCategoriesReadDto getUserAlertsCategories(int userId) {
