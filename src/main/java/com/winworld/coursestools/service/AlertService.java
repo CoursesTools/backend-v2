@@ -13,6 +13,7 @@ import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserAlert;
 import com.winworld.coursestools.entity.user.UserAlertId;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.event.UserAlertsChangeEvent;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.mapper.AlertMapper;
 import com.winworld.coursestools.repository.AlertRepository;
@@ -23,6 +24,7 @@ import com.winworld.coursestools.specification.alert.AlertSpecification;
 import com.winworld.coursestools.specification.alert.UserAlertSpecification;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -45,6 +47,7 @@ public class AlertService {
     private final UserSubscriptionService userSubscriptionService;
     private final SubscriptionService subscriptionService;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PageDto<AlertReadDto> getAlertsByFilter(int userId, AlertFilterDto filterDto, Pageable pageable) {
         checkUserSubscription(userId);
@@ -131,6 +134,7 @@ public class AlertService {
         }
 
         String telegramId = user.getSocial().getTelegramId();
+        eventPublisher.publishEvent(new UserAlertsChangeEvent(telegramId));
 
         return new CountDto(toUpdate.size() + toInsert.size());
     }
