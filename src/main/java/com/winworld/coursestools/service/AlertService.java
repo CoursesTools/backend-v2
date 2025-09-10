@@ -23,15 +23,21 @@ import com.winworld.coursestools.specification.alert.AlertSpecification;
 import com.winworld.coursestools.specification.alert.UserAlertSpecification;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +51,10 @@ public class AlertService {
     private final UserSubscriptionService userSubscriptionService;
     private final SubscriptionService subscriptionService;
     private final EntityManager entityManager;
+    private final RestTemplate restTemplate;
+
+    @Value("${urls.alert-bot}")
+    private String alertBotUrl;
 
     public PageDto<AlertReadDto> getAlertsByFilter(int userId, AlertFilterDto filterDto, Pageable pageable) {
         checkUserSubscription(userId);
@@ -130,6 +140,12 @@ public class AlertService {
             entityManager.flush(); // отправляем батч INSERT
         }
 
+        String telegramId = user.getSocial().getTelegramId();
+
+        CompletableFuture.runAsync(() -> {
+            sendNotificationAboutSubscription(telegramId);
+        });
+
         return new CountDto(toUpdate.size() + toInsert.size());
     }
 
@@ -180,5 +196,14 @@ public class AlertService {
         if (user.getSocial().getTelegramId() == null) {
             throw new ConflictException("You must have a Telegram account to use this feature");
         }
+    }
+
+    private void sendNotificationAboutSubscription(String telegramId) {
+        URI uri = UriComponentsBuilder.fromHttpUrl(alertBotUrl)
+                .queryParam("telegramId", telegramId)
+                .build()
+                .toUri();
+
+        restTemplate.postForObject(uri, null, Void.class);
     }
 }

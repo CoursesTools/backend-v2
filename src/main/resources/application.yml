@@ -90,6 +90,7 @@ urls:
   activating-bot: ${ACTIVATING_BOT_URL}
   change-tradingview-bot: ${CHANGE_TRADINGVIEW_BOT_URL}
   telegram-bot: ${TELEGRAM_BOT_URL}
+  alert-bot: ${ALERT_BOT_URL}
 
 cors:
   domains:
