@@ -18,6 +18,7 @@ import com.winworld.coursestools.mapper.AuthMapper;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.messaging.auth.RecoveryMessageBuilder;
 import com.winworld.coursestools.service.external.OAuthGoogleService;
+import com.winworld.coursestools.service.external.TradingViewService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.util.StringGeneratorUtil;
 import com.winworld.coursestools.util.jwt.impl.AuthJwtTokenUtil;
@@ -49,6 +50,7 @@ public class AuthService {
     private final StringGeneratorUtil stringGeneratorUtil;
     private final CodeService codeService;
     private final ReferralService referralService;
+    private final TradingViewService tradingViewService;
 
     @Value("${jwt.refreshLifeTime}")
     private Duration refreshLifeTime;
@@ -103,6 +105,7 @@ public class AuthService {
 
         user.setRole(UserRole.USER);
         userPartnership.setLevel(0);
+        tradingViewService.checkTradingViewName(tradingViewName);
         userSocial.setTradingViewName(tradingViewName);
 
         userPartnership.setUser(user);
