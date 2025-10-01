@@ -106,7 +106,7 @@ public class OrderService {
         boolean orderIsPaid = order.getStatus().equals(OrderStatus.PAID);
         boolean isRecurrentPayment = order.getOrderType().equals(OrderType.RECURRENT) && orderIsPaid;
         if (orderIsPaid && !isRecurrentPayment) {
-            log.warn("Order {} for user {} is already paid", order.getId(), user.getId());
+            log.error("Order {} for user {} is already paid", order.getId(), user.getId());
             throw new IllegalStateException("Order is already paid");
         }
         var paymentAmount = isRecurrentPayment ? order.getOriginalPrice() : order.getTotalPrice();
