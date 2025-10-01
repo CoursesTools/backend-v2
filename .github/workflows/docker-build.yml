@@ -67,6 +67,6 @@ jobs:
           script: |
             echo "${{ secrets.GHCP_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCP_USER }} --password-stdin
             cd /root/coursestools
-            docker compose pull backend
+            docker compose pull backend 
             docker compose up -d backend
             docker image prune -f
