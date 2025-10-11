@@ -6,6 +6,7 @@ import com.winworld.coursestools.dto.user.UpdateUserDto;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
+import com.winworld.coursestools.repository.TrialActivationRepository;
 import com.winworld.coursestools.service.CodeService;
 import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.TokenService;
@@ -22,8 +23,6 @@ public class UserValidator {
     private final CodeService codeService;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
-    private final UserSubscriptionService userSubscriptionService;
-    private final SubscriptionService subscriptionService;
 
     public void validateUserEmailUpdate(UpdateUserEmailDto dto, User user) {
         if (userDataService.existsByEmail(dto.getEmail())) {
@@ -61,12 +60,8 @@ public class UserValidator {
     }
 
     public void validateUserTradingViewUpdate(String tradingViewName, User user) {
-        var subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
-        var userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(user.getId(), subscriptionType.getId());
-        if (userSubscription.isEmpty() || userSubscription.get().getIsTrial()) {
-            throw new ConflictException("Cannot update TradingView name for inactive user");
-        }
-        if (!user.getSocial().getTradingViewName().equals(tradingViewName)
+        var userTradingViewName = user.getSocial().getTradingViewName();
+        if (!userTradingViewName.equals(tradingViewName)
                 && userDataService.existsByTradingViewName(tradingViewName)) {
             throw new ConflictException("TradingView name already in use");
         }

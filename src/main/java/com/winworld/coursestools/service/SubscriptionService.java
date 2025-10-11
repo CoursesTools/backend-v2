@@ -19,6 +19,7 @@ import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
+import com.winworld.coursestools.repository.TrialActivationRepository;
 import com.winworld.coursestools.repository.subscription.SubscriptionPlanRepository;
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
@@ -71,6 +72,7 @@ public class SubscriptionService {
     private final StripePaymentService stripePaymentService;
     private final ActivatingSubscriptionService activatingSubscriptionService;
     private final UserSubscriptionRepository userSubscriptionRepository;
+    private final TrialActivationRepository trialActivationRepository;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -94,8 +96,11 @@ public class SubscriptionService {
     @Transactional
     public UserSubscriptionReadDto activateCtProTrialForUser(int userId) {
         User user = userDataService.getUserById(userId);
+        String tradingViewName = user.getSocial().getTradingViewName();
         SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
-        if (userSubscriptionService.hasEverHadSubscriptionOfType(userId, subscriptionType.getId())) {
+
+        if (trialActivationRepository.existsByTradingviewUsername(tradingViewName)
+                || userSubscriptionService.hasEverHadSubscriptionOfType(userId, subscriptionType.getId())) {
             throw new ConflictException("You can`t use anymore trial subscription");
         }
 
@@ -112,6 +117,7 @@ public class SubscriptionService {
         user.addSubscription(userSubscription);
 
         var savedUserSubscription = userSubscriptionService.save(userSubscription);
+        trialActivationRepository.createTrialActivation(userId, tradingViewName);
         eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL_CREATED, savedUserSubscription));
         return userMapper.toDto(savedUserSubscription);
 

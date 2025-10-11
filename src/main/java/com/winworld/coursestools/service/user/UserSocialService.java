@@ -10,9 +10,11 @@ import com.winworld.coursestools.dto.user.UserReadDto;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.mapper.UserMapper;
+import com.winworld.coursestools.repository.TrialActivationRepository;
 import com.winworld.coursestools.service.AlertService;
 import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.TokenService;
@@ -37,6 +39,7 @@ public class UserSocialService {
     private final ActivatingSubscriptionService activatingSubscriptionService;
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionService userSubscriptionService;
+    private final TrialActivationRepository trialActivationRepository;
 
     @Value("${urls.telegram-bot}")
     private String urlTelegramBot;
@@ -61,17 +64,25 @@ public class UserSocialService {
         var user = userDataService.getUserById(userId);
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
         user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
+
         SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
-        UserSubscription userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
+        var userSubscriptionOptional = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
                 user.getId(), subscriptionType.getId()
-        ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
-        var changeNameDto = new ChangeTradingViewNameDto(
-                user.getSocial().getTradingViewName(),
-                dto.getTradingViewName().toLowerCase(),
-                userSubscription.getExpiredAt()
         );
+        if (userSubscriptionOptional.isPresent()) {
+            var userSubscription = userSubscriptionOptional.get();
+            if (userSubscription.getIsTrial()
+                    && trialActivationRepository.existsByTradingviewUsername(dto.getTradingViewName())) {
+                throw new ConflictException("TradingView username already used for trial");
+            }
+            var changeNameDto = new ChangeTradingViewNameDto(
+                    user.getSocial().getTradingViewName(),
+                    dto.getTradingViewName().toLowerCase(),
+                    userSubscription.getExpiredAt()
+            );
+            activatingSubscriptionService.changeTradingViewUsername(changeNameDto);
+        }
         var savedUser = userDataService.save(user);
-        activatingSubscriptionService.changeTradingViewUsername(changeNameDto);
         return userMapper.toDto(savedUser);
     }
 
