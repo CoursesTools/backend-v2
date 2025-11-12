@@ -73,6 +73,7 @@ public class SubscriptionService {
     private final ActivatingSubscriptionService activatingSubscriptionService;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final TrialActivationRepository trialActivationRepository;
+    private final SubscriptionDeactivationService subscriptionDeactivationService;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -123,25 +124,21 @@ public class SubscriptionService {
 
     }
 
-    @Transactional
     public List<Integer> deactivateExpiredSubscriptions() {
         List<UserSubscription> usersSubscriptions = userSubscriptionService
                 .findAllExpiredSubscriptionsByStatus(GRANTED);
+        List<Integer> userIds = new java.util.ArrayList<>();
+
         usersSubscriptions.forEach(userSubscription -> {
-            userSubscription.setStatus(GRACE_PERIOD);
-            User user = userSubscription.getUser();
-            Referral referred = user.getReferred();
-            if (referred != null) {
-                referred.setActive(false);
+            try {
+                subscriptionDeactivationService.deactivateSingleSubscription(userSubscription);
+                userIds.add(userSubscription.getUser().getId());
+            } catch (Exception e) {
+                log.error("Failed to deactivate subscription {} for user {}",
+                    userSubscription.getId(), userSubscription.getUser().getId(), e);
             }
-            if (!userSubscription.getIsTrial() && userSubscription.getPaymentMethod().equals(STRIPE)) {
-                stripePaymentService.cancelSubscription(userSubscription);
-            }
-            log.info("User {} subscription expired", user.getId());
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
-            //TODO Сделать напоминание о 3 днях, 7 и т.д.
         });
-        return usersSubscriptions.stream().map(UserSubscription::getId).toList();
+        return userIds;
     }
 
     @Transactional
