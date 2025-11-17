@@ -124,6 +124,7 @@ public class SubscriptionService {
 
     }
 
+    @Transactional
     public List<Integer> deactivateExpiredSubscriptions() {
         List<UserSubscription> usersSubscriptions = userSubscriptionService
                 .findAllExpiredSubscriptionsByStatus(GRANTED);

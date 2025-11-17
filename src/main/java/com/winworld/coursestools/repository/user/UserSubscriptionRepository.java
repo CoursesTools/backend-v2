@@ -38,6 +38,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query(value = """
             SELECT us
             FROM UserSubscription us
+            JOIN FETCH us.user u
+            LEFT JOIN FETCH u.referred
             WHERE us.expiredAt <= CURRENT_TIMESTAMP
             AND us.status = :status
             """)
@@ -46,6 +48,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query(value = """
             SELECT us
             FROM UserSubscription us
+            JOIN FETCH us.user u
             WHERE us.expiredAt <= CURRENT_TIMESTAMP
             AND us.status IN ('GRANTED')
             AND us.isTrial = true
@@ -55,6 +58,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query(value = """
             SELECT us
             FROM UserSubscription us
+            JOIN FETCH us.user u
             WHERE us.expiredAt <= :cutoffDate
               AND us.status = :status
             """)
