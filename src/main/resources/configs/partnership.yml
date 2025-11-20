@@ -1,4 +1,5 @@
 partnership:
+  permitted-users-for-referral-cashback: ${PERMITTED_USERS_FOR_REFERRAL_CASHBACK}
   discount: 30
   levels:
     - rank: 0

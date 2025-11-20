@@ -22,6 +22,7 @@ import com.winworld.coursestools.validation.validator.OrderValidator;
 import com.winworld.coursestools.validation.validator.payment.PaymentValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +43,9 @@ public class OrderService {
     private final UserSubscriptionService userSubscriptionService;
     private final PartnershipService partnershipService;
     private final List<PaymentValidator> paymentValidators;
+
+    @Value("${partnership.permitted-users-for-referral-cashback}")
+    private List<Integer> permittedUsersForReferralCashback;
 
     public Order createOrder(int userId, CreateOrderDto createDto) {
         User user = userDataService.getUserById(userId);
@@ -133,7 +137,10 @@ public class OrderService {
         ));
 
         var referred = user.getReferred();
-        if (referred != null) {
+        if (referred != null
+                && (code == null ||
+                code.isPartnershipCode() || permittedUsersForReferralCashback.contains(referred.getReferrer().getId()))
+        ) {
             partnershipService.calculateCashbackAfterNewReferral(
                     referred, paymentAmount, transaction
             );
