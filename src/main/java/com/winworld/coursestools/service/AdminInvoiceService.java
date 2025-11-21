@@ -34,25 +34,25 @@ public class AdminInvoiceService {
 
     @Transactional
     public String createCustomInvoice(CreateCustomInvoiceDto dto) {
+        if (dto.getPlan().equals(Plan.TRIAL)) {
+            throw new DataValidationException("Custom invoices can`t be created for trial plans");
+        }
+
         User user = userDataService.getUserById(dto.getUserId());
         SubscriptionType subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
         SubscriptionPlan subscriptionPlan = subscription.getPlans()
                 .stream()
-                .filter(plan -> plan.getName().equals(Plan.LIFETIME))
+                .filter(plan -> plan.getName().equals(dto.getPlan()))
                 .findFirst()
                 .orElseThrow(() -> new DataValidationException(
-                        "LIFETIME plan not found for subscription " + SubscriptionName.COURSESTOOLSPRO));
-
-        if (!subscriptionPlan.getName().equals(Plan.LIFETIME)) {
-            throw new DataValidationException("Custom invoices can only be created for LIFETIME plans");
-        }
+                        dto.getPlan() + " plan not found for subscription " + SubscriptionName.COURSESTOOLSPRO));
 
         UserSubscription userSubscription = userSubscriptionService
                 .getUserSubBySubTypeIdNotTerminated(user.getId(), subscriptionPlan.getSubscriptionType().getId())
                 .orElse(null);
 
-        if (userSubscription != null && userSubscription.getPlan().getName().equals(Plan.LIFETIME)) {
-            throw new ConflictException("User already has a lifetime plan");
+        if (userSubscription != null && userSubscription.getPlan().getName().equals(dto.getPlan())) {
+            throw new ConflictException("User already has a current plan");
         }
 
         Order order = Order.builder()

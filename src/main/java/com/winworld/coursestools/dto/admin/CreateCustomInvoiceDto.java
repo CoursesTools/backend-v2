@@ -1,5 +1,6 @@
 package com.winworld.coursestools.dto.admin;
 
+import com.winworld.coursestools.enums.Plan;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
@@ -15,6 +16,9 @@ public class CreateCustomInvoiceDto {
     @NotNull(message = NOT_NULL_MESSAGE)
     @Positive(message = POSITIVE_MESSAGE)
     private Integer userId;
+
+    @NotNull(message = NOT_NULL_MESSAGE)
+    private Plan plan;
 
     @NotNull(message = NOT_NULL_MESSAGE)
     @Positive(message = POSITIVE_MESSAGE)
