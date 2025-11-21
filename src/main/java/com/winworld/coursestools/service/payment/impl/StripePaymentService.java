@@ -163,10 +163,8 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
      */
     public String createCustomInvoice(com.winworld.coursestools.entity.Order order, String email, String description) {
         try {
-            // 1. Find or create customer
             String customerId = findOrCreateCustomer(email);
 
-            // 2. Create invoice item
             InvoiceItemCreateParams itemParams = InvoiceItemCreateParams.builder()
                     .setCustomer(customerId)
                     .setAmount(order.getTotalPrice().longValue())
@@ -176,15 +174,13 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                     .build();
             InvoiceItem.create(itemParams);
 
-            // 3. Create invoice
             InvoiceCreateParams invoiceParams = InvoiceCreateParams.builder()
                     .setCustomer(customerId)
-                    .setAutoAdvance(true)  // Automatically finalize and attempt payment
-                    .setCollectionMethod(InvoiceCreateParams.CollectionMethod.CHARGE_AUTOMATICALLY)
+                    .setCollectionMethod(InvoiceCreateParams.CollectionMethod.SEND_INVOICE)
+                    .setDaysUntilDue(1L)
                     .build();
             Invoice invoice = Invoice.create(invoiceParams);
 
-            // 4. Finalize invoice
             invoice = invoice.finalizeInvoice();
 
             log.info("Successfully created custom Stripe invoice {} for order {}", invoice.getId(), order.getId());
@@ -202,7 +198,6 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
      * @throws StripeException если произошла ошибка при работе со Stripe API
      */
     private String findOrCreateCustomer(String email) throws StripeException {
-        // Try to find existing customer
         CustomerListParams listParams = CustomerListParams.builder()
                 .setEmail(email)
                 .setLimit(1L)
@@ -212,8 +207,6 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         if (!customers.getData().isEmpty()) {
             return customers.getData().get(0).getId();
         }
-
-        // Create new customer if not found
         CustomerCreateParams createParams = CustomerCreateParams.builder()
                 .setEmail(email)
                 .build();
@@ -243,7 +236,6 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public ProcessPaymentDto processPayment(StripeRetrieveDto paymentRequest) {
         Invoice invoice = parseInvoiceFromWebhook(paymentRequest);
 
-        // Build payment data - subscriptionId can be null for one-time invoices
         Map<String, Object> paymentData = new java.util.HashMap<>();
         paymentData.put(CUSTOMER_ID, invoice.getCustomer());
         if (invoice.getSubscription() != null) {
