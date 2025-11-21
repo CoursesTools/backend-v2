@@ -2,7 +2,9 @@ package com.winworld.coursestools.controller;
 
 import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
+import com.winworld.coursestools.dto.admin.CreateCustomInvoiceDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
+import com.winworld.coursestools.service.AdminInvoiceService;
 import com.winworld.coursestools.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class AdminController {
     private final AdminService adminService;
+    private final AdminInvoiceService adminInvoiceService;
 
     @GetMapping("/statistics")
     @PreAuthorize("hasRole('ADMIN') or hasRole('PARTNER')")
@@ -42,5 +45,11 @@ public class AdminController {
             @RequestParam(required = false) String email
     ) {
         return adminService.getUserInfo(tradingViewName, email, userId);
+    }
+
+    @PostMapping("/invoices/create")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String createCustomInvoice(@RequestBody @Valid CreateCustomInvoiceDto dto) {
+        return adminInvoiceService.createCustomInvoice(dto);
     }
 }

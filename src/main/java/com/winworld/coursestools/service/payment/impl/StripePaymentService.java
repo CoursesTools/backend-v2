@@ -9,8 +9,15 @@ import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
 import com.stripe.model.Coupon;
+import com.stripe.model.Customer;
+import com.stripe.model.CustomerCollection;
+import com.stripe.model.InvoiceItem;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
+import com.stripe.param.CustomerCreateParams;
+import com.stripe.param.CustomerListParams;
+import com.stripe.param.InvoiceCreateParams;
+import com.stripe.param.InvoiceItemCreateParams;
 import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.CouponCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
@@ -146,6 +153,75 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         }
     }
 
+    /**
+     * Создает кастомный Stripe Invoice для одноразового платежа
+     * @param order заказ для которого создается invoice
+     * @param email email пользователя
+     * @param description описание invoice (опционально)
+     * @return URL на hosted invoice page
+     * @throws ExternalServiceException если не удалось создать invoice
+     */
+    public String createCustomInvoice(com.winworld.coursestools.entity.Order order, String email, String description) {
+        try {
+            // 1. Find or create customer
+            String customerId = findOrCreateCustomer(email);
+
+            // 2. Create invoice item
+            InvoiceItemCreateParams itemParams = InvoiceItemCreateParams.builder()
+                    .setCustomer(customerId)
+                    .setAmount(order.getTotalPrice().longValue())
+                    .setCurrency("usd")
+                    .setDescription(description != null ? description : "CoursesTools Pro " + order.getPlan().getDisplayName())
+                    .putMetadata("order_id", order.getId().toString())
+                    .build();
+            InvoiceItem.create(itemParams);
+
+            // 3. Create invoice
+            InvoiceCreateParams invoiceParams = InvoiceCreateParams.builder()
+                    .setCustomer(customerId)
+                    .setAutoAdvance(true)  // Automatically finalize and attempt payment
+                    .setCollectionMethod(InvoiceCreateParams.CollectionMethod.CHARGE_AUTOMATICALLY)
+                    .build();
+            Invoice invoice = Invoice.create(invoiceParams);
+
+            // 4. Finalize invoice
+            invoice = invoice.finalizeInvoice();
+
+            log.info("Successfully created custom Stripe invoice {} for order {}", invoice.getId(), order.getId());
+            return invoice.getHostedInvoiceUrl();
+        } catch (StripeException e) {
+            log.error("Failed to create custom Stripe invoice for order ID: {}", order.getId(), e);
+            throw new ExternalServiceException("Failed to create custom invoice: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Находит существующего клиента по email или создает нового
+     * @param email email клиента
+     * @return ID клиента в Stripe
+     * @throws StripeException если произошла ошибка при работе со Stripe API
+     */
+    private String findOrCreateCustomer(String email) throws StripeException {
+        // Try to find existing customer
+        CustomerListParams listParams = CustomerListParams.builder()
+                .setEmail(email)
+                .setLimit(1L)
+                .build();
+        CustomerCollection customers = Customer.list(listParams);
+
+        if (!customers.getData().isEmpty()) {
+            return customers.getData().get(0).getId();
+        }
+
+        // Create new customer if not found
+        CustomerCreateParams createParams = CustomerCreateParams.builder()
+                .setEmail(email)
+                .build();
+        Customer customer = Customer.create(createParams);
+        log.info("Created new Stripe customer {} for email {}", customer.getId(), email);
+        return customer.getId();
+    }
+
     @Override
     public String createPaymentLink(CreatePaymentLinkDto dto) {
         try {
@@ -166,10 +242,14 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     @Override
     public ProcessPaymentDto processPayment(StripeRetrieveDto paymentRequest) {
         Invoice invoice = parseInvoiceFromWebhook(paymentRequest);
-        Map<String, Object> paymentData = Map.of(
-                CUSTOMER_ID, invoice.getCustomer(),
-                SUBSCRIPTION_ID, invoice.getSubscription()
-        );
+
+        // Build payment data - subscriptionId can be null for one-time invoices
+        Map<String, Object> paymentData = new java.util.HashMap<>();
+        paymentData.put(CUSTOMER_ID, invoice.getCustomer());
+        if (invoice.getSubscription() != null) {
+            paymentData.put(SUBSCRIPTION_ID, invoice.getSubscription());
+        }
+
         return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
                 .orderId(getOrderIdFromInvoice(invoice))
@@ -177,8 +257,21 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     }
 
     private Integer getOrderIdFromInvoice(Invoice invoice) {
-        String orderId = invoice.getLines().getData().get(0).getMetadata().get("order_id");
-        return Integer.parseInt(orderId);
+        if (invoice.getLines() == null || invoice.getLines().getData().isEmpty()) {
+            throw new PaymentProcessingException("Invoice has no line items");
+        }
+
+        var lineItem = invoice.getLines().getData().get(0);
+        if (lineItem.getMetadata() == null || !lineItem.getMetadata().containsKey("order_id")) {
+            throw new PaymentProcessingException("Order ID not found in invoice metadata");
+        }
+
+        String orderId = lineItem.getMetadata().get("order_id");
+        try {
+            return Integer.parseInt(orderId);
+        } catch (NumberFormatException e) {
+            throw new PaymentProcessingException("Invalid order ID format: " + orderId);
+        }
     }
 
     private Invoice parseInvoiceFromWebhook(StripeRetrieveDto paymentRequest) {
