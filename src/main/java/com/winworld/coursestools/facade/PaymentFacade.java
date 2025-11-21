@@ -36,7 +36,10 @@ public class PaymentFacade {
                 .payload(payload)
                 .signature(signature)
                 .build();
-        processOrder(stripePaymentService.processPayment(dto));
+        ProcessPaymentDto paymentDto = stripePaymentService.processWebhook(dto);
+        if (paymentDto != null) {
+            processOrder(paymentDto);
+        }
     }
 
     public void retrievePayeerPayment(PayeerRetrieveDto dto) {

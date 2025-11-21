@@ -9,15 +9,8 @@ import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
 import com.stripe.model.Coupon;
-import com.stripe.model.Customer;
-import com.stripe.model.CustomerCollection;
-import com.stripe.model.InvoiceItem;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
-import com.stripe.param.CustomerCreateParams;
-import com.stripe.param.CustomerListParams;
-import com.stripe.param.InvoiceCreateParams;
-import com.stripe.param.InvoiceItemCreateParams;
 import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.CouponCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
@@ -49,6 +42,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.math.BigDecimal;
 
+import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.CHECKOUT__SESSION__COMPLETED;
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
 
 @Service
@@ -154,65 +148,46 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     }
 
     /**
-     * Создает кастомный Stripe Invoice для одноразового платежа
-     * @param order заказ для которого создается invoice
+     * Создает Checkout Session для одноразового платежа (PAYMENT mode)
+     * @param order заказ для которого создается session
      * @param email email пользователя
-     * @param description описание invoice (опционально)
-     * @return URL на hosted invoice page
-     * @throws ExternalServiceException если не удалось создать invoice
+     * @param description описание платежа (опционально)
+     * @return URL на checkout session
+     * @throws ExternalServiceException если не удалось создать session
      */
     public String createCustomInvoice(com.winworld.coursestools.entity.Order order, String email, String description) {
         try {
-            String customerId = findOrCreateCustomer(email);
+            ProductData productData = ProductData.builder()
+                    .setName(description != null ? description : "CoursesTools Pro " + order.getPlan().getDisplayName())
+                    .build();
 
-            InvoiceItemCreateParams itemParams = InvoiceItemCreateParams.builder()
-                    .setCustomer(customerId)
-                    .setAmount(order.getTotalPrice().longValue())
+            PriceData priceData = PriceData.builder()
                     .setCurrency("usd")
-                    .setDescription(description != null ? description : "CoursesTools Pro " + order.getPlan().getDisplayName())
+                    .setUnitAmount(order.getTotalPrice().longValue())
+                    .setProductData(productData)
+                    .build();
+
+            SessionCreateParams params = SessionCreateParams.builder()
+                    .setSuccessUrl(webUrl + "/payment/success")
+                    .setCancelUrl(webUrl + "/payment/error")
+                    .addLineItem(
+                            LineItem.builder()
+                                    .setPriceData(priceData)
+                                    .setQuantity(1L)
+                                    .build()
+                    )
+                    .setMode(SessionCreateParams.Mode.PAYMENT)
+                    .setCustomerEmail(email)
                     .putMetadata("order_id", order.getId().toString())
                     .build();
-            InvoiceItem.create(itemParams);
 
-            InvoiceCreateParams invoiceParams = InvoiceCreateParams.builder()
-                    .setCustomer(customerId)
-                    .setCollectionMethod(InvoiceCreateParams.CollectionMethod.SEND_INVOICE)
-                    .setDaysUntilDue(1L)
-                    .build();
-            Invoice invoice = Invoice.create(invoiceParams);
-
-            invoice = invoice.finalizeInvoice();
-
-            log.info("Successfully created custom Stripe invoice {} for order {}", invoice.getId(), order.getId());
-            return invoice.getHostedInvoiceUrl();
+            Session session = Session.create(params);
+            log.info("Successfully created custom checkout session {} for order {}", session.getId(), order.getId());
+            return session.getUrl();
         } catch (StripeException e) {
-            log.error("Failed to create custom Stripe invoice for order ID: {}", order.getId(), e);
-            throw new ExternalServiceException("Failed to create custom invoice: " + e.getMessage());
+            log.error("Failed to create custom checkout session for order ID: {}", order.getId(), e);
+            throw new ExternalServiceException("Failed to create custom checkout session: " + e.getMessage());
         }
-    }
-
-    /**
-     * Находит существующего клиента по email или создает нового
-     * @param email email клиента
-     * @return ID клиента в Stripe
-     * @throws StripeException если произошла ошибка при работе со Stripe API
-     */
-    private String findOrCreateCustomer(String email) throws StripeException {
-        CustomerListParams listParams = CustomerListParams.builder()
-                .setEmail(email)
-                .setLimit(1L)
-                .build();
-        CustomerCollection customers = Customer.list(listParams);
-
-        if (!customers.getData().isEmpty()) {
-            return customers.getData().get(0).getId();
-        }
-        CustomerCreateParams createParams = CustomerCreateParams.builder()
-                .setEmail(email)
-                .build();
-        Customer customer = Customer.create(createParams);
-        log.info("Created new Stripe customer {} for email {}", customer.getId(), email);
-        return customer.getId();
     }
 
     @Override
@@ -232,6 +207,45 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         return PaymentMethod.STRIPE;
     }
 
+    /**
+     * Универсальный обработчик Stripe webhooks
+     * Определяет тип события и вызывает соответствующий обработчик
+     * @param paymentRequest данные webhook
+     * @return DTO с данными платежа
+     */
+    public ProcessPaymentDto processWebhook(StripeRetrieveDto paymentRequest) {
+        try {
+            Event event = Webhook.constructEvent(
+                    paymentRequest.getPayload(),
+                    paymentRequest.getSignature(),
+                    properties.webhookSecret()
+            );
+
+            String eventType = event.getType();
+            log.info("Processing Stripe webhook: {}", eventType);
+
+            if (eventType.equals(INVOICE__PAYMENT_SUCCEEDED.getValue())) {
+                return processPayment(paymentRequest);
+            } else if (eventType.equals(CHECKOUT__SESSION__COMPLETED.getValue())) {
+                Session session = (Session) event.getDataObjectDeserializer().deserializeUnsafe();
+                String mode = session.getMode();
+
+                if (mode.equals(SessionCreateParams.Mode.PAYMENT.getValue())) {
+                    return processCheckoutSession(paymentRequest);
+                } else {
+                    return null;
+                }
+            } else {
+                throw new PaymentProcessingException("Unsupported event type: " + eventType);
+            }
+        } catch (SignatureVerificationException e) {
+            throw new SecurityException(e.getMessage());
+        } catch (EventDataObjectDeserializationException e) {
+            log.error("Deserialization stripe error", e);
+            throw new PaymentProcessingException("Failed to deserialize event data");
+        }
+    }
+
     @Override
     public ProcessPaymentDto processPayment(StripeRetrieveDto paymentRequest) {
         Invoice invoice = parseInvoiceFromWebhook(paymentRequest);
@@ -245,6 +259,24 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
                 .orderId(getOrderIdFromInvoice(invoice))
+                .build();
+    }
+
+    /**
+     * Обрабатывает webhook checkout.session.completed для одноразовых платежей
+     * @param paymentRequest данные webhook
+     * @return DTO с данными платежа
+     * @throws PaymentProcessingException если обработка не удалась
+     */
+    public ProcessPaymentDto processCheckoutSession(StripeRetrieveDto paymentRequest) {
+        Session session = parseCheckoutSessionFromWebhook(paymentRequest);
+
+        Map<String, Object> paymentData = new java.util.HashMap<>();
+        paymentData.put(CUSTOMER_ID, session.getCustomer());
+
+        return ProcessPaymentDto.builder()
+                .paymentProviderData(paymentData)
+                .orderId(getOrderIdFromSession(session))
                 .build();
     }
 
@@ -263,6 +295,42 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
             return Integer.parseInt(orderId);
         } catch (NumberFormatException e) {
             throw new PaymentProcessingException("Invalid order ID format: " + orderId);
+        }
+    }
+
+    private Integer getOrderIdFromSession(Session session) {
+        if (session.getMetadata() == null || !session.getMetadata().containsKey("order_id")) {
+            throw new PaymentProcessingException("Order ID not found in session metadata");
+        }
+
+        String orderId = session.getMetadata().get("order_id");
+        try {
+            return Integer.parseInt(orderId);
+        } catch (NumberFormatException e) {
+            throw new PaymentProcessingException("Invalid order ID format: " + orderId);
+        }
+    }
+
+    private Session parseCheckoutSessionFromWebhook(StripeRetrieveDto paymentRequest) {
+        try {
+            Event event = Webhook.constructEvent(
+                    paymentRequest.getPayload(),
+                    paymentRequest.getSignature(),
+                    properties.webhookSecret()
+            );
+
+            if (!event.getType().equals("checkout.session.completed")) {
+                throw new PaymentProcessingException(
+                        "Invalid event type: " + event.getType()
+                );
+            }
+            EventDataObjectDeserializer dataObjectDeserializer = event.getDataObjectDeserializer();
+            return (Session) dataObjectDeserializer.deserializeUnsafe();
+        } catch (SignatureVerificationException e) {
+            throw new SecurityException(e.getMessage());
+        } catch (EventDataObjectDeserializationException e) {
+            log.error("Deserialization stripe error", e);
+            throw new PaymentProcessingException("Failed to deserialize event data");
         }
     }
 
