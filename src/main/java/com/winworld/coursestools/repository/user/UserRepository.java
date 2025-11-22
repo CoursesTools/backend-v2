@@ -18,6 +18,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findUserByPartnerCode(String partnerCode);
 
     @EntityGraph(attributePaths = {"profile", "partnership", "social", "subscriptions", "referred", "finance"})
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     Optional<User> findUserWithDetailsByEmail(String email);
 
     @EntityGraph(attributePaths = {"profile", "partnership", "social", "subscriptions", "referred", "finance"})
@@ -25,7 +26,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findUserWithDetailsById(Integer id);
 
     @EntityGraph(attributePaths = {"profile", "partnership", "social", "subscriptions", "referred", "finance"})
-    @Query("SELECT u FROM User u JOIN u.social s WHERE s.tradingViewName = :tradingViewName")
+    @Query("SELECT u FROM User u JOIN u.social s WHERE LOWER(s.tradingViewName) = LOWER(:tradingViewName)")
     Optional<User> findUserWithDetailsByTradingViewName(String tradingViewName);
 
 }
