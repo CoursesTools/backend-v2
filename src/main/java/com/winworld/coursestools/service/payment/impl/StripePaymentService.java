@@ -4,15 +4,15 @@ import com.stripe.Stripe;
 import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
+import com.stripe.model.Coupon;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
-import com.stripe.model.Coupon;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
-import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.CouponCreateParams;
+import com.stripe.param.SubscriptionCancelParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.param.checkout.SessionCreateParams.Discount;
 import com.stripe.param.checkout.SessionCreateParams.LineItem;
@@ -27,20 +27,19 @@ import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.Currency;
 import com.winworld.coursestools.enums.PaymentMethod;
-import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
 import com.winworld.coursestools.exception.exceptions.PaymentProcessingException;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.service.payment.PaymentService;
-import com.winworld.coursestools.service.user.UserDataService;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
 import java.math.BigDecimal;
+import java.util.Map;
 
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.CHECKOUT__SESSION__COMPLETED;
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
@@ -393,15 +392,18 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     }
 
     private PriceData buildPriceData(CreatePaymentLinkDto dto, ProductData productData) {
+        PriceData.Recurring.Builder recurring = PriceData.Recurring.builder();
+
+        if (dto.getPlanName() == Plan.YEAR) {
+            recurring.setInterval(Interval.YEAR).setIntervalCount(1L);
+        } else {
+            recurring.setInterval(Interval.MONTH).setIntervalCount(1L);
+        }
+
         return PriceData.builder()
                 .setCurrency("usd")
                 .setUnitAmount(dto.getOriginalPrice().longValue())
-                .setRecurring(
-                        PriceData.Recurring.builder()
-                                .setInterval(Interval.MONTH)
-                                .setIntervalCount(1L)
-                                .build()
-                )
+                .setRecurring(recurring.build())
                 .setProductData(productData)
                 .build();
     }

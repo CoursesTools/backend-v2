@@ -1,5 +1,6 @@
 package com.winworld.coursestools.dto.payment;
 
+import com.winworld.coursestools.enums.Plan;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -12,4 +13,5 @@ public class CreatePaymentLinkDto {
     private Boolean isPartnershipCode;
     private BigDecimal totalPrice;
     private BigDecimal originalPrice;
+    private Plan planName;
 }

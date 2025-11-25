@@ -26,8 +26,9 @@ public class StripePaymentValidator implements PaymentValidator {
         if (userSubscription == null || userSubscription.getStatus().equals(GRACE_PERIOD) || userSubscription.getIsTrial()) {
             return;
         }
-        if (!order.getPlan().getName().equals(Plan.MONTH)) {
-            throw new ConflictException("With Stripe payment method, you can only subscribe to the monthly plan.");
+        Plan planName = order.getPlan().getName();
+        if (planName.equals(Plan.LIFETIME) || planName.equals(Plan.TRIAL)) {
+            throw new ConflictException("Stripe payment method doesn't support this plan type.");
         }
         if (userSubscription.getPaymentMethod().equals(order.getPaymentMethod()) && order.getPaymentMethod().equals(STRIPE)) {
             throw new ConflictException("You already have an active subscription with Stripe payment method.");

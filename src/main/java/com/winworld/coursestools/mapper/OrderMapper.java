@@ -21,5 +21,6 @@ public interface OrderMapper {
     @Mapping(target = "email", source = "user.email")
     @Mapping(target = "code", source = "code.code")
     @Mapping(target = "isPartnershipCode", expression = "java(order.getCode() != null && order.getCode().isPartnershipCode())")
+    @Mapping(target = "planName", source = "plan.name")
     CreatePaymentLinkDto toCreateDto(Order order);
 }
