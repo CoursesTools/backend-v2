@@ -7,6 +7,3 @@ payment-platforms:
     api-key: ${CRYPTO_API_KEY}
     shop-id: ${CRYPTO_SHOP_ID}
     secret: ${CRYPTO_SECRET}
-  payeer:
-    shop-id: ${PAYEER_SHOP_ID}
-    secret: ${PAYEER_SECRET}

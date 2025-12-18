@@ -18,7 +18,6 @@ public class PublicUrlsHolder {
                 requestMatcher("/v1/users/socials/telegram/bind", HttpMethod.PATCH),
                 requestMatcher("/v1/payments/crypto"),
                 requestMatcher("/v1/payments/stripe"),
-                requestMatcher("/v1/payments/payeer"),
                 requestMatcher("/swagger-ui/**"),
                 requestMatcher("/api-docs.yaml"),
                 requestMatcher("/api-docs"),

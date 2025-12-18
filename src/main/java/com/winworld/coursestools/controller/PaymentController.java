@@ -4,13 +4,11 @@ import com.winworld.coursestools.config.security.UserPrincipal;
 import com.winworld.coursestools.dto.RedirectDto;
 import com.winworld.coursestools.dto.payment.BalanceRetrieveDto;
 import com.winworld.coursestools.dto.payment.crypto.CryptoRetrieveDto;
-import com.winworld.coursestools.dto.payment.payeer.PayeerRetrieveDto;
 import com.winworld.coursestools.facade.PaymentFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -38,11 +36,6 @@ public class PaymentController {
     @PostMapping(value = "/crypto", consumes = APPLICATION_FORM_URLENCODED_VALUE)
     public void retrieveCryptoPayment(@Valid CryptoRetrieveDto dto) {
         paymentFacade.retrieveCryptoPayment(dto);
-    }
-
-    @PostMapping("/payeer")
-    public void retrievePayeerPayment(@ModelAttribute PayeerRetrieveDto dto) {
-        paymentFacade.retrievePayeerPayment(dto);
     }
 
     @PostMapping(value = "/balance")
