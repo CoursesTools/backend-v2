@@ -84,6 +84,8 @@ public class OrderService {
             totalPrice = subscriptionPrice;
         }
 
+        orderValidator.validateMonthlyPlanPrice(plan, subscriptionPrice, totalPrice, createDto, referrer);
+
         Order order = Order.builder()
                 .user(user)
                 .code(code)
