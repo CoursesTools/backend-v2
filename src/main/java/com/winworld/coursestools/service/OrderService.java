@@ -12,6 +12,7 @@ import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.OrderStatus;
 import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.TransactionType;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.repository.OrderRepository;
@@ -58,7 +59,8 @@ public class OrderService {
         BigDecimal subscriptionPrice = plan.getPrice();
 
         if (userSubscription != null && !userSubscription.getIsTrial()
-                && userSubscription.getPlan().equals(plan)) {
+                && userSubscription.getPlan().equals(plan)
+                && plan.getName().equals(Plan.MONTH)) {
             subscriptionPrice = userSubscription.getPrice();
         }
 
