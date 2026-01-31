@@ -49,6 +49,7 @@ import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE_
 public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public static final String CUSTOMER_ID = "customerId";
     public static final String SUBSCRIPTION_ID = "subscriptionId";
+    public static final String CURRENT_PERIOD_END = "currentPeriodEnd";
 
     private final StripeProperties properties;
 
@@ -253,6 +254,12 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         paymentData.put(CUSTOMER_ID, invoice.getCustomer());
         if (invoice.getSubscription() != null) {
             paymentData.put(SUBSCRIPTION_ID, invoice.getSubscription());
+            try {
+                Subscription subscription = Subscription.retrieve(invoice.getSubscription());
+                paymentData.put(CURRENT_PERIOD_END, subscription.getCurrentPeriodEnd());
+            } catch (StripeException e) {
+                log.error("Failed to retrieve subscription details for subscription: {}", invoice.getSubscription(), e);
+            }
         }
 
         return ProcessPaymentDto.builder()

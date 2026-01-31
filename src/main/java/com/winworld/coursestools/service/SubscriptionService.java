@@ -35,12 +35,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CURRENT_PERIOD_END;
 
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
@@ -194,19 +197,18 @@ public class SubscriptionService {
             User user,
             Map<String, Object> paymentProviderData
     ) {
-        LocalDateTime expirationDate;
+        LocalDateTime baseDate;
         UserSubscription newSubscription = new UserSubscription();
         SubscriptionPlan subscriptionPlan = order.getPlan();
 
         if (currentSubscription != null && currentSubscription.getIsTrial()) {
-            expirationDate = currentSubscription.getExpiredAt();
+            baseDate = currentSubscription.getExpiredAt();
             currentSubscription.setStatus(TERMINATED);
         } else {
-            expirationDate = getNow();
+            baseDate = getNow();
         }
 
-        expirationDate = expirationDate
-                .plusDays(PAYMENT_GRACE_DAYS + subscriptionPlan.getDurationDays());
+        LocalDateTime expirationDate = calculateExpirationDate(baseDate, subscriptionPlan, paymentProviderData);
 
         newSubscription.setPlan(subscriptionPlan);
         newSubscription.setPrice(subscriptionPlan.getPrice());
@@ -251,8 +253,7 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         var plan = order.getPlan();
-        LocalDateTime expirationDate = getNow()
-                .plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
+        LocalDateTime expirationDate = calculateExpirationDate(getNow(), plan, paymentProviderData);
 
         subscription.setStatus(PENDING);
         subscription.setPrice(order.getOriginalPrice());
@@ -283,8 +284,7 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         var plan = order.getPlan();
-        LocalDateTime expirationDate = subscription.getExpiredAt()
-                .plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
+        LocalDateTime expirationDate = calculateExpirationDate(subscription.getExpiredAt(), plan, paymentProviderData);
 
         if (subscription.getPaymentMethod().equals(STRIPE) && !order.getPaymentMethod().equals(STRIPE)) {
             stripePaymentService.cancelSubscription(subscription);
@@ -312,6 +312,21 @@ public class SubscriptionService {
 
     private LocalDateTime getNow() {
         return LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    private LocalDateTime calculateExpirationDate(
+            LocalDateTime baseDate,
+            SubscriptionPlan plan,
+            Map<String, Object> paymentProviderData
+    ) {
+        if (paymentProviderData != null && paymentProviderData.containsKey(CURRENT_PERIOD_END)) {
+            Long periodEnd = (Long) paymentProviderData.get(CURRENT_PERIOD_END);
+            return LocalDateTime.ofInstant(
+                    Instant.ofEpochSecond(periodEnd),
+                    ZoneOffset.UTC
+            ).plusDays(PAYMENT_GRACE_DAYS);
+        }
+        return baseDate.plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
     }
 
     @Transactional
