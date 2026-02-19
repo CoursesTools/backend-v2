@@ -62,7 +62,7 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionService {
-    public static final int PAYMENT_GRACE_DAYS = 1;
+    public static final int PAYMENT_GRACE_DAYS = 2;
     public static final int GRACE_PERIOD_DAYS = 7;
 
     private final UserDataService userDataService;

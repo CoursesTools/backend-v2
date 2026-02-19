@@ -41,6 +41,7 @@ val wireMockVersion = "3.12.1"
 val testContainersRedisVersion = "2.2.2"
 val logbackEncoderVersion = 7.4
 val datasourceProxyVersion = "1.9.1"
+
 dependencies {
     /**
     Spring starters
