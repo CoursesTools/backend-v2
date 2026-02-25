@@ -41,6 +41,12 @@ public class AuthController {
     @Value("${cors.domains.web}")
     private String webDomain;
 
+    @Value("${cookie.secure}")
+    private boolean cookieSecure;
+
+    @Value("${cookie.same-site}")
+    private String cookieSameSite;
+
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<AuthTokensDto> signup(
@@ -117,10 +123,10 @@ public class AuthController {
                 .from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
                 .httpOnly(true)
                 .maxAge(refreshLifeTime)
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .domain("." + webDomain)
                 .path("/")
-                .secure(true)
+                .secure(cookieSecure)
                 .build();
     }
 }

@@ -96,6 +96,10 @@ cors:
   domains:
     web: ${CORS_WEB_DOMAINS}
 
+cookie:
+  secure: ${COOKIE_SECURE:true}
+  same-site: ${COOKIE_SAME_SITE:None}
+
 tokens:
   password-reset:
     lifetime: 2m
@@ -104,4 +108,4 @@ tokens:
   telegram-binding:
     lifetime: 3m
 
-subscription.ct-pro.trial.days: 3
+subscription.ct-pro.trial.days: 7
