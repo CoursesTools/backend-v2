@@ -39,7 +39,8 @@ out/
 .vscode/
 
 ##Docker###
-# docker-compose.yml is now committed for local dev setup
+docker-compose.yml
+docker-compose.yaml
 
 ##Session Notes###
 .mem
