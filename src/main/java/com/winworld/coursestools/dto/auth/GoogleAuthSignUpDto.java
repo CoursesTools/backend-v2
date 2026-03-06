@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 
 import static com.winworld.coursestools.constants.RegularExpression.TRADING_VIEW_USERNAME;
 import static com.winworld.coursestools.constants.ValidationMessages.NOT_BLANK_MESSAGE;
-import static com.winworld.coursestools.constants.ValidationMessages.PATTERN_MESSAGE;
+import static com.winworld.coursestools.constants.ValidationMessages.TRADING_VIEW_USERNAME_MESSAGE;
 
 @Data
 @AllArgsConstructor
@@ -19,7 +19,7 @@ public class GoogleAuthSignUpDto {
 
     @NotBlank(message = NOT_BLANK_MESSAGE)
     @Size(min = 3, max = 25, message = USERNAME_SIZE_MESSAGE)
-    @Pattern(regexp = TRADING_VIEW_USERNAME, message = PATTERN_MESSAGE)
+    @Pattern(regexp = TRADING_VIEW_USERNAME, message = TRADING_VIEW_USERNAME_MESSAGE)
     private String tradingViewName;
 
     private String referrerCode;

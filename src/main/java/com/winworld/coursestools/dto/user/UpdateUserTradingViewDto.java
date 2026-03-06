@@ -5,11 +5,11 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import static com.winworld.coursestools.constants.RegularExpression.TRADING_VIEW_USERNAME;
-import static com.winworld.coursestools.constants.ValidationMessages.PATTERN_MESSAGE;
+import static com.winworld.coursestools.constants.ValidationMessages.TRADING_VIEW_USERNAME_MESSAGE;
 
 @Data
 public class UpdateUserTradingViewDto {
-    @Pattern(regexp = TRADING_VIEW_USERNAME, message = PATTERN_MESSAGE)
+    @Pattern(regexp = TRADING_VIEW_USERNAME, message = TRADING_VIEW_USERNAME_MESSAGE)
     @NotNull
     private String tradingViewName;
 }

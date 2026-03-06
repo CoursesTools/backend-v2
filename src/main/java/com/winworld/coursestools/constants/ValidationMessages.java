@@ -6,4 +6,5 @@ public class ValidationMessages {
     public static final String NOT_BLANK_MESSAGE = "The field must not be empty";
     public static final String EMAIL_MESSAGE = "Field is not email";
     public static final String PATTERN_MESSAGE = "Field not match the pattern";
+    public static final String TRADING_VIEW_USERNAME_MESSAGE = "TradingView username may only contain letters, numbers, underscores, dots, and hyphens";
 }
