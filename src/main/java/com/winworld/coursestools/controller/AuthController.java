@@ -119,14 +119,18 @@ public class AuthController {
     }
 
     private ResponseCookie createRefreshTokenCookie(String refreshToken, Duration refreshLifeTime) {
-        return ResponseCookie
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie
                 .from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
                 .httpOnly(true)
                 .maxAge(refreshLifeTime)
                 .sameSite(cookieSameSite)
-                .domain("." + webDomain)
                 .path("/")
-                .secure(cookieSecure)
-                .build();
+                .secure(cookieSecure);
+
+        if (!webDomain.equals("localhost")) {
+            builder.domain("." + webDomain);
+        }
+
+        return builder.build();
     }
 }
