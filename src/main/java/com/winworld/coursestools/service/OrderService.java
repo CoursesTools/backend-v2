@@ -24,6 +24,8 @@ import com.winworld.coursestools.validation.validator.payment.PaymentValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -159,6 +161,10 @@ public class OrderService {
             order.setStatus(OrderStatus.PAID);
         }
         log.info("Order {} for user {} processed successfully", order.getId(), user.getId());
+    }
+
+    public Page<Order> getUserOrders(int userId, Pageable pageable) {
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
     public Order getOrderById(int id) {

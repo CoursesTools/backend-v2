@@ -1,6 +1,8 @@
 package com.winworld.coursestools.dto.order;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.winworld.coursestools.enums.OrderStatus;
+import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -31,6 +33,10 @@ public class ReadOrderDto {
     private Integer totalPrice;
     @Schema(requiredMode = REQUIRED)
     private Integer originalPrice;
+    @Schema(requiredMode = REQUIRED)
+    private OrderStatus status;
+    @Schema(requiredMode = REQUIRED)
+    private OrderType orderType;
     @Schema(requiredMode = REQUIRED)
     private LocalDateTime createdAt;
 }
