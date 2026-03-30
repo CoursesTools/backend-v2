@@ -51,6 +51,7 @@ docker-compose.yaml
 ##Installation Guide###
 .INSTALLATION_GUIDE
 LOCAL_SETUP.md
+DOCKER_DB.md
 
 ## Folder with installation data##
 /TRANSP_FOLDER/
