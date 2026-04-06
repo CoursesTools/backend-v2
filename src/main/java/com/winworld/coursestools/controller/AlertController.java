@@ -39,13 +39,17 @@ public class AlertController {
     }
 
     @GetMapping("/categories")
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(@AuthenticationPrincipal UserPrincipal principal) {
-        return alertService.getAlertSubscriptionCategories(principal.userId(), false);
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(required = false) List<String> indicators) {
+        return alertService.getAlertSubscriptionCategories(principal.userId(), false, indicators);
     }
 
     @GetMapping("/categories/multi")
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategoriesMulti(@AuthenticationPrincipal UserPrincipal principal) {
-        return alertService.getAlertSubscriptionCategories(principal.userId(), true);
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategoriesMulti(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(required = false) List<String> indicators) {
+        return alertService.getAlertSubscriptionCategories(principal.userId(), true, indicators);
     }
 
     @GetMapping("/me/categories")

@@ -21,12 +21,13 @@ CREATE TABLE tier_indicator_permissions (
     indicator VARCHAR(32) NOT NULL,
     subscription_type_id INTEGER NOT NULL REFERENCES subscription_types(id),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(tier, indicator, subscription_type_id)
 );
 
 -- 5. Essentials can only use WCSMC indicator
 INSERT INTO tier_indicator_permissions (tier, indicator, subscription_type_id)
-VALUES ('ESSENTIALS', 'WCSMC', (SELECT id FROM subscription_types WHERE name = 'COURSESTOOLS'));
+VALUES ('ESSENTIALS', 'wcsmc', (SELECT id FROM subscription_types WHERE name = 'COURSESTOOLS'));
 
 -- 6. Add promo code scoping columns
 ALTER TABLE codes

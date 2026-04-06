@@ -33,11 +33,25 @@ public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpeci
     List<String> getAllTypes(boolean isMulti);
 
     @Query(value = """
+        SELECT DISTINCT a.type
+        FROM alerts a
+        WHERE multi_alert = :isMulti AND a.indicator IN (:indicators)
+    """, nativeQuery = true)
+    List<String> getAllTypesByIndicators(boolean isMulti, @Param("indicators") List<String> indicators);
+
+    @Query(value = """
         SELECT DISTINCT a.asset as assets
         FROM alerts a
         WHERE a.type = :type AND a.multi_alert = :isMulti
     """, nativeQuery = true)
     List<String> getAllAssetsByType(String type, boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.asset as assets
+        FROM alerts a
+        WHERE a.type = :type AND a.multi_alert = :isMulti AND a.indicator IN (:indicators)
+    """, nativeQuery = true)
+    List<String> getAllAssetsByTypeAndIndicators(String type, boolean isMulti, @Param("indicators") List<String> indicators);
 
     @Query(value = """
         SELECT DISTINCT a.broker
@@ -47,6 +61,13 @@ public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpeci
     List<String> getAllBrokersByType(String type, boolean isMulti);
 
     @Query(value = """
+        SELECT DISTINCT a.broker
+        FROM alerts a
+        WHERE a.type = :type AND a.multi_alert = :isMulti AND a.indicator IN (:indicators)
+    """, nativeQuery = true)
+    List<String> getAllBrokersByTypeAndIndicators(String type, boolean isMulti, @Param("indicators") List<String> indicators);
+
+    @Query(value = """
         SELECT DISTINCT a.tf
         FROM alerts a
         WHERE multi_alert = :isMulti
@@ -54,11 +75,25 @@ public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpeci
     List<String> getAllTimeFrames(boolean isMulti);
 
     @Query(value = """
+        SELECT DISTINCT a.tf
+        FROM alerts a
+        WHERE multi_alert = :isMulti AND a.indicator IN (:indicators)
+    """, nativeQuery = true)
+    List<String> getAllTimeFramesByIndicators(boolean isMulti, @Param("indicators") List<String> indicators);
+
+    @Query(value = """
         SELECT DISTINCT a.event
         FROM alerts a
         WHERE multi_alert = :isMulti
     """, nativeQuery = true)
     List<String> getAllEvents(boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.event
+        FROM alerts a
+        WHERE multi_alert = :isMulti AND a.indicator IN (:indicators)
+    """, nativeQuery = true)
+    List<String> getAllEventsByIndicators(boolean isMulti, @Param("indicators") List<String> indicators);
 
     @Query(value = """
         SELECT DISTINCT a.indicator

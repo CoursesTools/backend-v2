@@ -177,29 +177,52 @@ public class AlertService {
         return alertRepository.getUserAlertsCategories(userId);
     }
 
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti) {
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti, List<String> requestedIndicators) {
         UserSubscription userSubscription = checkUserSubscription(userId);
-        var types = alertRepository.getAllTypes(isMulti);
-        AlertSubscriptionCategoriesDto categories = new AlertSubscriptionCategoriesDto();
-        types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
-                type,
-                alertRepository.getAllAssetsByType(type, isMulti),
-                alertRepository.getAllBrokersByType(type, isMulti)
-        )));
-        categories.setEvents(alertRepository.getAllEvents(isMulti));
-        categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
-
-        // Add indicators list, filtered by tier permissions
-        List<String> indicators = alertRepository.getAllIndicators(isMulti);
         SubscriptionTier tier = userSubscription.getPlan().getTier();
         int subTypeId = userSubscription.getPlan().getSubscriptionType().getId();
-        Set<String> allowed = alertValidator.getAllowedIndicators(tier, subTypeId);
-        if (!allowed.isEmpty()) {
-            indicators = indicators.stream()
-                    .filter(allowed::contains)
+        Set<String> tierAllowed = alertValidator.getAllowedIndicators(tier, subTypeId);
+
+        // Determine effective indicator filter:
+        // 1. If tier is restricted AND query param provided: intersect (respect both)
+        // 2. If tier is restricted only: use tier restriction
+        // 3. If query param provided only: use query param
+        // 4. Neither: no filter (return all)
+        List<String> effectiveFilter = null;
+        if (!tierAllowed.isEmpty() && requestedIndicators != null && !requestedIndicators.isEmpty()) {
+            effectiveFilter = requestedIndicators.stream()
+                    .filter(tierAllowed::contains)
                     .toList();
+        } else if (!tierAllowed.isEmpty()) {
+            effectiveFilter = new ArrayList<>(tierAllowed);
+        } else if (requestedIndicators != null && !requestedIndicators.isEmpty()) {
+            effectiveFilter = requestedIndicators;
         }
-        categories.setIndicators(indicators);
+
+        AlertSubscriptionCategoriesDto categories = new AlertSubscriptionCategoriesDto();
+        final List<String> indicatorFilter = effectiveFilter;
+
+        if (indicatorFilter != null && !indicatorFilter.isEmpty()) {
+            var types = alertRepository.getAllTypesByIndicators(isMulti, indicatorFilter);
+            types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
+                    type,
+                    alertRepository.getAllAssetsByTypeAndIndicators(type, isMulti, indicatorFilter),
+                    alertRepository.getAllBrokersByTypeAndIndicators(type, isMulti, indicatorFilter)
+            )));
+            categories.setEvents(alertRepository.getAllEventsByIndicators(isMulti, indicatorFilter));
+            categories.setTimeFrames(alertRepository.getAllTimeFramesByIndicators(isMulti, indicatorFilter));
+            categories.setIndicators(indicatorFilter);
+        } else {
+            var types = alertRepository.getAllTypes(isMulti);
+            types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
+                    type,
+                    alertRepository.getAllAssetsByType(type, isMulti),
+                    alertRepository.getAllBrokersByType(type, isMulti)
+            )));
+            categories.setEvents(alertRepository.getAllEvents(isMulti));
+            categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
+            categories.setIndicators(alertRepository.getAllIndicators(isMulti));
+        }
 
         return categories;
     }
