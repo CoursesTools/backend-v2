@@ -16,6 +16,8 @@ public class AlertSubscriptionCategoriesDto {
     private List<String> events = new ArrayList<>();
     @Schema(requiredMode = REQUIRED)
     private List<String> timeFrames = new ArrayList<>();
+    @Schema(requiredMode = REQUIRED)
+    private List<String> indicators = new ArrayList<>();
 
     public record Type(@Schema(requiredMode = REQUIRED) String type,
                        @Schema(requiredMode = REQUIRED) List<String> assets,

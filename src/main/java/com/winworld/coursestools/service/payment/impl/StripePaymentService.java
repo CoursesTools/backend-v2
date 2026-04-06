@@ -158,7 +158,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public String createCustomInvoice(com.winworld.coursestools.entity.Order order, String email, String description) {
         try {
             ProductData productData = ProductData.builder()
-                    .setName(description != null ? description : "CoursesTools Pro " + order.getPlan().getDisplayName())
+                    .setName(description != null ? description : order.getPlan().getDisplayName())
                     .build();
 
             PriceData priceData = PriceData.builder()
@@ -364,7 +364,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     }
 
     private SessionCreateParams buildSessionParams(CreatePaymentLinkDto dto) {
-        ProductData productData = buildProductData();
+        ProductData productData = buildProductData(dto);
         PriceData priceData = buildPriceData(dto, productData);
         Discount discount = buildDiscount(dto);
 
@@ -392,9 +392,9 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
         return params.build();
     }
 
-    private ProductData buildProductData() {
+    private ProductData buildProductData(CreatePaymentLinkDto dto) {
         return ProductData.builder()
-                .setName("CoursesTools Premium")
+                .setName(dto.getPlanDisplayName())
                 .build();
     }
 

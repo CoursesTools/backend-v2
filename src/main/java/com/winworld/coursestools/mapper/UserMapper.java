@@ -31,6 +31,7 @@ public interface UserMapper {
     @Mapping(target = "isTrial", source = "isTrial")
     @Mapping(target = "plan", source = "plan.name")
     @Mapping(target = "planId", source = "plan.id")
+    @Mapping(target = "tier", source = "plan.tier")
     UserSubscriptionReadDto toDto(UserSubscription userSubscription);
 
     @Mapping(target = "isReferralBonusUsed", source = "referred.bonusUsed")

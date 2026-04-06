@@ -59,4 +59,11 @@ public interface AlertRepository extends JpaRepository<Alert, Integer>, JpaSpeci
         WHERE multi_alert = :isMulti
     """, nativeQuery = true)
     List<String> getAllEvents(boolean isMulti);
+
+    @Query(value = """
+        SELECT DISTINCT a.indicator
+        FROM alerts a
+        WHERE multi_alert = :isMulti
+    """, nativeQuery = true)
+    List<String> getAllIndicators(boolean isMulti);
 }

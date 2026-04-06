@@ -65,7 +65,7 @@ public class UserSocialService {
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
         user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
 
-        SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         var userSubscriptionOptional = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
                 user.getId(), subscriptionType.getId()
         );

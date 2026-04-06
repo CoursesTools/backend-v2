@@ -14,4 +14,5 @@ public class CreatePaymentLinkDto {
     private BigDecimal totalPrice;
     private BigDecimal originalPrice;
     private Plan planName;
+    private String planDisplayName;
 }

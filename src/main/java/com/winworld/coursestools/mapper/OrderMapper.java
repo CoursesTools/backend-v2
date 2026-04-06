@@ -14,6 +14,7 @@ public interface OrderMapper {
     @Mapping(target = "paymentLink", ignore = true)
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "plan", source = "plan.displayName")
+    @Mapping(target = "tier", source = "plan.tier")
     @Mapping(target = "code", source = "code.code")
     ReadOrderDto toDto(Order order);
 
@@ -22,5 +23,6 @@ public interface OrderMapper {
     @Mapping(target = "code", source = "code.code")
     @Mapping(target = "isPartnershipCode", expression = "java(order.getCode() != null && order.getCode().isPartnershipCode())")
     @Mapping(target = "planName", source = "plan.name")
+    @Mapping(target = "planDisplayName", source = "plan.displayName")
     CreatePaymentLinkDto toCreateDto(Order order);
 }
