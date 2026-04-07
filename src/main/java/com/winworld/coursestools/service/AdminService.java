@@ -17,6 +17,7 @@ import com.winworld.coursestools.service.user.UserTransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -72,6 +73,7 @@ public class AdminService {
                 .reduce(0, Integer::sum);
     }
 
+    @Transactional
     public void changeUserAccess(ChangeUserAccessDto dto) {
         var user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
         var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);

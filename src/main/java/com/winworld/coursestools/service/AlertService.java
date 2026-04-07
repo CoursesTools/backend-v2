@@ -177,6 +177,7 @@ public class AlertService {
         return alertRepository.getUserAlertsCategories(userId);
     }
 
+    @Transactional(readOnly = true)
     public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti, List<String> requestedIndicators) {
         UserSubscription userSubscription = checkUserSubscription(userId);
         SubscriptionTier tier = userSubscription.getPlan().getTier();

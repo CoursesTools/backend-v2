@@ -60,6 +60,7 @@ public class UserSocialService {
         return new RedirectDto(urlTelegramBot + "?start=" + token);
     }
 
+    @Transactional
     public UserReadDto bindUserTradingView(UpdateUserTradingViewDto dto, int userId) {
         var user = userDataService.getUserById(userId);
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
