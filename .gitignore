@@ -57,3 +57,5 @@ DOCKER_DB.md
 /TRANSP_FOLDER/
 /claude-docs/
 /claude-plans/
+
+tmp_alerts_insert.sql

@@ -260,7 +260,8 @@ public class SubscriptionService {
 
         user.addSubscription(newSubscription);
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
+                user.getEmail(), plan.getTier(),
+                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
@@ -292,7 +293,8 @@ public class SubscriptionService {
         subscription.setPaymentMethod(PaymentMethod.MANUAL);
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+                user.getEmail(), subscription.getPlan().getTier(),
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
@@ -324,7 +326,8 @@ public class SubscriptionService {
     ) {
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+                user.getEmail(), subscription.getPlan().getTier(),
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
@@ -358,7 +361,8 @@ public class SubscriptionService {
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
         activatingSubscriptionService.activateTradingViewAccess(
-                new ActivateTradingViewAccessDto(user.getEmail(), dto.getUsername(), expiration)
+                new ActivateTradingViewAccessDto(user.getEmail(), userSubscription.getPlan().getTier(),
+                        dto.getUsername(), expiration)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }

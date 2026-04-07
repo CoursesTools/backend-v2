@@ -78,6 +78,7 @@ public class UserSocialService {
             var changeNameDto = new ChangeTradingViewNameDto(
                     user.getSocial().getTradingViewName(),
                     dto.getTradingViewName().toLowerCase(),
+                    userSubscription.getPlan().getTier(),
                     userSubscription.getExpiredAt()
             );
             activatingSubscriptionService.changeTradingViewUsername(changeNameDto);
