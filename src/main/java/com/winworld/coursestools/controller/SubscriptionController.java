@@ -33,8 +33,11 @@ public class SubscriptionController {
     @GetMapping("/{name}")
     public SubscriptionReadDto getSubscription(
             @PathVariable String name,
-            @RequestParam(required = false) SubscriptionTier tier) {
-        return subscriptionService.getSubscription(SubscriptionName.fromString(name), tier);
+            @RequestParam(required = false) String tier) {
+        return subscriptionService.getSubscription(
+                SubscriptionName.fromString(name),
+                tier != null ? SubscriptionTier.fromString(tier) : null
+        );
     }
 
     @PostMapping("/activate")
