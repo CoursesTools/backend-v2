@@ -10,6 +10,7 @@ import com.winworld.coursestools.service.EmailService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -38,7 +39,7 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
 
     @TransactionalEventListener
     @Async
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void activateUserSubscription(SubscriptionChangeStatusEvent event) {
         if (!EVENTS_FOR_ACTIVATE.contains(event.getEventType())) {
             return;
