@@ -14,6 +14,7 @@ import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -82,8 +83,18 @@ public class SubscriptionService {
     private int ctProTrialDays;
 
     public SubscriptionReadDto getSubscription(SubscriptionName name) {
+        return getSubscription(name, null);
+    }
+
+    public SubscriptionReadDto getSubscription(SubscriptionName name, SubscriptionTier tier) {
         SubscriptionType subscriptionType = getSubscriptionTypeByName(name);
-        return subscriptionMapper.toDto(subscriptionType);
+        SubscriptionReadDto dto = subscriptionMapper.toDto(subscriptionType);
+        if (tier != null) {
+            dto.setPlans(dto.getPlans().stream()
+                    .filter(p -> p.getTier() == tier)
+                    .toList());
+        }
+        return dto;
     }
 
     public SubscriptionPlan getSubscriptionPlan(int planId) {
@@ -101,7 +112,7 @@ public class SubscriptionService {
     public UserSubscriptionReadDto activateCtProTrialForUser(int userId) {
         User user = userDataService.getUserById(userId);
         String tradingViewName = user.getSocial().getTradingViewName();
-        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
 
         if (trialActivationRepository.existsByTradingviewUsername(tradingViewName)
                 || userSubscriptionService.hasEverHadSubscriptionOfType(userId, subscriptionType.getId())) {
@@ -110,10 +121,15 @@ public class SubscriptionService {
 
         LocalDateTime expiredAt = getNow()
                 .plusDays(ctProTrialDays);
+        SubscriptionPlan trialPlan = subscriptionType.getPlans().stream()
+                .filter(p -> p.getTier() == SubscriptionTier.PRO && p.getName() == Plan.MONTH)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("Pro monthly plan not found"));
+
         UserSubscription userSubscription = UserSubscription.builder()
                 .user(user)
                 .status(PENDING)
-                .plan(subscriptionType.getPlans().get(0))
+                .plan(trialPlan)
                 .price(BigDecimal.ZERO)
                 .isTrial(true)
                 .expiredAt(expiredAt)
@@ -226,11 +242,17 @@ public class SubscriptionService {
     public UserSubscription createNewSubscription(
             User user,
             boolean isTrial,
-            LocalDate expiredAt
+            LocalDate expiredAt,
+            SubscriptionTier tier
     ) {
         UserSubscription newSubscription = new UserSubscription();
 
-        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO).getPlans().get(0);
+        // Trials always grant PRO access regardless of requested tier
+        SubscriptionTier effectiveTier = isTrial ? SubscriptionTier.PRO : tier;
+        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
+                .filter(p -> p.getTier() == effectiveTier && p.getName() == Plan.MONTH)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(effectiveTier + " monthly plan not found"));
 
         newSubscription.setPlan(plan);
         newSubscription.setPrice(plan.getPrice());
@@ -241,7 +263,8 @@ public class SubscriptionService {
 
         user.addSubscription(newSubscription);
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
+                user.getEmail(), plan.getTier(),
+                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
@@ -273,7 +296,8 @@ public class SubscriptionService {
         subscription.setPaymentMethod(PaymentMethod.MANUAL);
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+                user.getEmail(), subscription.getPlan().getTier(),
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
@@ -305,7 +329,8 @@ public class SubscriptionService {
     ) {
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+                user.getEmail(), subscription.getPlan().getTier(),
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
@@ -332,14 +357,15 @@ public class SubscriptionService {
     @Transactional
     public UserSubscriptionReadDto activateSubscription(SubscriptionActivateDto dto) {
         User user = userDataService.getUserByTradingViewName(dto.getUsername());
-        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         UserSubscription userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
                 user.getId(), subscriptionType.getId()
         ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
         activatingSubscriptionService.activateTradingViewAccess(
-                new ActivateTradingViewAccessDto(user.getEmail(), dto.getUsername(), expiration)
+                new ActivateTradingViewAccessDto(user.getEmail(), userSubscription.getPlan().getTier(),
+                        dto.getUsername(), expiration)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }

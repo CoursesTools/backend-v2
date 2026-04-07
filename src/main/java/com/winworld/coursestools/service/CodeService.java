@@ -4,9 +4,11 @@ import com.winworld.coursestools.config.props.PartnershipProps;
 import com.winworld.coursestools.dto.code.CodeReadDto;
 import com.winworld.coursestools.dto.code.PromoCodeCreateDto;
 import com.winworld.coursestools.entity.Code;
+import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.DiscountType;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
+import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.CodeMapper;
 import com.winworld.coursestools.repository.CodeRepository;
@@ -83,6 +85,17 @@ public class CodeService {
         }
         codeValidator.validateCodeEligibility(code, user);
         return codeMapper.toDto(code);
+    }
+
+    public CodeReadDto checkCode(int userId, String codeValue, SubscriptionPlan plan) {
+        CodeReadDto dto = checkCode(userId, codeValue);
+        Code code = getCodeByValue(codeValue);
+        if (code.getTier() != null && code.getTier() != plan.getTier()) {
+            throw new DataValidationException(
+                    "This promo code is not valid for " + plan.getTier() + " plans"
+            );
+        }
+        return dto;
     }
 
     public boolean existsByCode(String code) {

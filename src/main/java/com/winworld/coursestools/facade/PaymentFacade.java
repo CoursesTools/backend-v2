@@ -48,7 +48,7 @@ public class PaymentFacade {
     }
 
     public String getStripePanel(int userId) {
-        var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         UserSubscription userSubscription = userSubscriptionService
                 .getUserSubBySubTypeIdNotTerminated(userId, subscription.getId())
                 .orElseThrow(() -> new EntityNotFoundException("User subscription not found"));

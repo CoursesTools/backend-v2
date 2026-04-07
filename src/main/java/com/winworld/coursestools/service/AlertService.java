@@ -12,7 +12,9 @@ import com.winworld.coursestools.entity.base.BaseEntity;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserAlert;
 import com.winworld.coursestools.entity.user.UserAlertId;
+import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.event.UserAlertsChangeEvent;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.mapper.AlertMapper;
@@ -22,6 +24,7 @@ import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.specification.alert.AlertSpecification;
 import com.winworld.coursestools.specification.alert.UserAlertSpecification;
+import com.winworld.coursestools.validation.validator.AlertValidator;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,6 +49,7 @@ public class AlertService {
     private final UserAlertSpecification userAlertSpecification;
     private final UserSubscriptionService userSubscriptionService;
     private final SubscriptionService subscriptionService;
+    private final AlertValidator alertValidator;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -75,7 +79,7 @@ public class AlertService {
 
     @Transactional
     public CountDto subscribeOnAlerts(int userId, AlertSubscribeDto dto) {
-        checkUserSubscription(userId);
+        UserSubscription userSubscription = checkUserSubscription(userId);
         User user = userDataService.getUserById(userId);
 
         // 1. Находим все алерты по фильтру
@@ -85,6 +89,11 @@ public class AlertService {
         if (alerts.isEmpty()) {
             return new CountDto(0);
         }
+
+        // Validate indicator permissions based on user's tier
+        SubscriptionTier tier = userSubscription.getPlan().getTier();
+        int subTypeId = userSubscription.getPlan().getSubscriptionType().getId();
+        alertValidator.validateIndicatorPermissions(tier, subTypeId, alerts);
 
         // 2. Одним запросом получаем существующие связи
         List<Integer> alertIds = alerts.stream()
@@ -168,28 +177,66 @@ public class AlertService {
         return alertRepository.getUserAlertsCategories(userId);
     }
 
-    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti) {
-        checkUserSubscription(userId);
-        var types = alertRepository.getAllTypes(isMulti);
+    public AlertSubscriptionCategoriesDto getAlertSubscriptionCategories(int userId, boolean isMulti, List<String> requestedIndicators) {
+        UserSubscription userSubscription = checkUserSubscription(userId);
+        SubscriptionTier tier = userSubscription.getPlan().getTier();
+        int subTypeId = userSubscription.getPlan().getSubscriptionType().getId();
+        Set<String> tierAllowed = alertValidator.getAllowedIndicators(tier, subTypeId);
+
+        // Determine effective indicator filter:
+        // 1. If tier is restricted AND query param provided: intersect (respect both)
+        // 2. If tier is restricted only: use tier restriction
+        // 3. If query param provided only: use query param
+        // 4. Neither: no filter (return all)
+        List<String> effectiveFilter = null;
+        if (!tierAllowed.isEmpty() && requestedIndicators != null && !requestedIndicators.isEmpty()) {
+            effectiveFilter = requestedIndicators.stream()
+                    .filter(tierAllowed::contains)
+                    .toList();
+        } else if (!tierAllowed.isEmpty()) {
+            effectiveFilter = new ArrayList<>(tierAllowed);
+        } else if (requestedIndicators != null && !requestedIndicators.isEmpty()) {
+            effectiveFilter = requestedIndicators;
+        }
+
         AlertSubscriptionCategoriesDto categories = new AlertSubscriptionCategoriesDto();
-        types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
-                type,
-                alertRepository.getAllAssetsByType(type, isMulti),
-                alertRepository.getAllBrokersByType(type, isMulti)
-        )));
-        categories.setEvents(alertRepository.getAllEvents(isMulti));
-        categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
+        final List<String> indicatorFilter = effectiveFilter;
+
+        if (indicatorFilter != null && !indicatorFilter.isEmpty()) {
+            var types = alertRepository.getAllTypesByIndicators(isMulti, indicatorFilter);
+            types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
+                    type,
+                    alertRepository.getAllAssetsByTypeAndIndicators(type, isMulti, indicatorFilter),
+                    alertRepository.getAllBrokersByTypeAndIndicators(type, isMulti, indicatorFilter)
+            )));
+            categories.setEvents(alertRepository.getAllEventsByIndicators(isMulti, indicatorFilter));
+            categories.setTimeFrames(alertRepository.getAllTimeFramesByIndicators(isMulti, indicatorFilter));
+            categories.setIndicators(indicatorFilter);
+        } else {
+            var types = alertRepository.getAllTypes(isMulti);
+            types.forEach(type -> categories.getTypes().add(new AlertSubscriptionCategoriesDto.Type(
+                    type,
+                    alertRepository.getAllAssetsByType(type, isMulti),
+                    alertRepository.getAllBrokersByType(type, isMulti)
+            )));
+            categories.setEvents(alertRepository.getAllEvents(isMulti));
+            categories.setTimeFrames(alertRepository.getAllTimeFrames(isMulti));
+            categories.setIndicators(alertRepository.getAllIndicators(isMulti));
+        }
+
         return categories;
     }
 
-    private void checkUserSubscription(int userId) {
-        var subscription = subscriptionService.getSubscription(SubscriptionName.COURSESTOOLSPRO);
-        userSubscriptionService.getUserSubBySubTypeIdNotTerminated(userId, subscription.getId())
+    private UserSubscription checkUserSubscription(int userId) {
+        var subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        UserSubscription userSub = userSubscriptionService
+                .getUserSubBySubTypeIdNotTerminated(userId, subscriptionType.getId())
                 .orElseThrow(() -> new ConflictException("You must have a subscription to use this feature"));
         User user = userDataService.getUserById(userId);
         if (user.getSocial().getTelegramId() == null) {
             throw new ConflictException("You must have a Telegram account to use this feature");
         }
+        return userSub;
     }
 
 

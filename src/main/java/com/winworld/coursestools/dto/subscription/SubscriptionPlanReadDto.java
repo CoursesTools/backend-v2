@@ -1,6 +1,7 @@
 package com.winworld.coursestools.dto.subscription;
 
 import com.winworld.coursestools.enums.Plan;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -16,4 +17,6 @@ public class SubscriptionPlanReadDto {
     private float price;
     @Schema(requiredMode = REQUIRED)
     private float discountMultiplier;
+    @Schema(requiredMode = REQUIRED)
+    private SubscriptionTier tier;
 }

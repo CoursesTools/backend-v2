@@ -2,6 +2,7 @@ package com.winworld.coursestools.dto.user;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.winworld.coursestools.enums.PaymentMethod;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,6 +28,8 @@ public class UserSubscriptionReadDto {
     private Plan plan;
     @Schema(requiredMode = REQUIRED)
     private int planId;
+    @Schema(requiredMode = REQUIRED)
+    private SubscriptionTier tier;
     @Schema(requiredMode = REQUIRED)
     private PaymentMethod paymentMethod;
     @Schema(requiredMode = REQUIRED)

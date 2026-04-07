@@ -3,7 +3,7 @@ package com.winworld.coursestools.enums;
 import com.winworld.coursestools.exception.exceptions.DataValidationException;
 
 public enum SubscriptionName {
-    COURSESTOOLSPRO,
+    COURSESTOOLS,
     MENTORSHIP;
 
     public static SubscriptionName fromString(String name) {

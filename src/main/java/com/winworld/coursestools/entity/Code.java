@@ -1,13 +1,16 @@
 package com.winworld.coursestools.entity;
 
 import com.winworld.coursestools.entity.base.BaseEntity;
+import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.DiscountType;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
@@ -49,6 +52,14 @@ public class Code extends BaseEntity {
 
     @Column(name = "max_uses")
     private Integer maxUses;
+
+    @ManyToOne(fetch = LAZY)
+    @JoinColumn(name = "subscription_type_id")
+    private SubscriptionType subscriptionType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tier", length = 32)
+    private SubscriptionTier tier;
 
     @OneToOne
     @JoinColumn(name = "owner_id", unique = true)

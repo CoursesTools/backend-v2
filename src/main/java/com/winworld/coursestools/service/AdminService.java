@@ -74,7 +74,7 @@ public class AdminService {
 
     public void changeUserAccess(ChangeUserAccessDto dto) {
         var user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
-        var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLSPRO);
+        var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         var userSubscriptionOptional = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(user.getId(), subscription.getId());
         if (userSubscriptionOptional.isPresent()) {
             var userSubscription = userSubscriptionOptional.get();
@@ -85,7 +85,7 @@ public class AdminService {
                 subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt());
             }
         } else {
-            subscriptionService.createNewSubscription(user, dto.getIsTrial(), dto.getExpiredAt());
+            subscriptionService.createNewSubscription(user, dto.getIsTrial(), dto.getExpiredAt(), dto.getTier());
         }
     }
 

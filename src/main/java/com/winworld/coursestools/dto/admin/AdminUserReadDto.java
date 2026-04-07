@@ -4,6 +4,7 @@ import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -40,6 +41,8 @@ public class AdminUserReadDto {
         private Integer id;
         @Schema(requiredMode = REQUIRED)
         private Plan plan;
+        @Schema(requiredMode = REQUIRED)
+        private SubscriptionTier tier;
         @Schema(requiredMode = REQUIRED)
         private SubscriptionName subscriptionName;
         @Schema(requiredMode = REQUIRED)

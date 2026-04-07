@@ -1,6 +1,7 @@
 package com.winworld.coursestools.dto.code;
 
 import com.winworld.coursestools.enums.DiscountType;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -26,5 +27,7 @@ public class CodeReadDto {
     private LocalDate validUntil;
     @Schema(requiredMode = NOT_REQUIRED)
     private Integer maxUses;
+    @Schema(requiredMode = NOT_REQUIRED)
+    private SubscriptionTier tier;
 
 }

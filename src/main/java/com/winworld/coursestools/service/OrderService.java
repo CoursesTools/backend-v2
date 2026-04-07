@@ -14,6 +14,7 @@ import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.TransactionType;
+import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.repository.OrderRepository;
 import com.winworld.coursestools.service.user.UserDataService;
@@ -72,6 +73,11 @@ public class OrderService {
 
         if (createDto.getCode() != null) {
             code = codeService.getCodeByValue(createDto.getCode());
+            if (code.getTier() != null && code.getTier() != plan.getTier()) {
+                throw new DataValidationException(
+                        "This promo code is not valid for " + plan.getTier() + " plans"
+                );
+            }
             totalPrice = pricingService.calculatePrice(
                     code, plan.getDiscountMultiplier(), subscriptionPrice
             );

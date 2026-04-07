@@ -2,6 +2,7 @@ package com.winworld.coursestools.dto.order;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.winworld.coursestools.enums.OrderStatus;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,6 +30,8 @@ public class ReadOrderDto {
     private String code;
     @Schema(requiredMode = REQUIRED)
     private String plan;
+    @Schema(requiredMode = REQUIRED)
+    private SubscriptionTier tier;
     @Schema(requiredMode = REQUIRED)
     private Integer totalPrice;
     @Schema(requiredMode = REQUIRED)

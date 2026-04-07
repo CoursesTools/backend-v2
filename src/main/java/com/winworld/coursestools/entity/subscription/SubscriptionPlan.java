@@ -3,6 +3,7 @@ package com.winworld.coursestools.entity.subscription;
 import com.winworld.coursestools.entity.base.BaseEntity;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.Plan;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -47,6 +48,10 @@ public class SubscriptionPlan extends BaseEntity {
 
     @Column(name = "discount_multiplier", nullable = false)
     private BigDecimal discountMultiplier;
+
+    @Column(name = "tier", length = 32, nullable = false)
+    @Enumerated(EnumType.STRING)
+    private SubscriptionTier tier;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "subscription_type_id")

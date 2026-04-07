@@ -5,6 +5,7 @@ import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,8 +31,13 @@ public class SubscriptionController {
     }
 
     @GetMapping("/{name}")
-    public SubscriptionReadDto getSubscription(@PathVariable String name) {
-        return subscriptionService.getSubscription(SubscriptionName.fromString(name));
+    public SubscriptionReadDto getSubscription(
+            @PathVariable String name,
+            @RequestParam(required = false) String tier) {
+        return subscriptionService.getSubscription(
+                SubscriptionName.fromString(name),
+                tier != null ? SubscriptionTier.fromString(tier) : null
+        );
     }
 
     @PostMapping("/activate")

@@ -19,5 +19,7 @@ public interface CodeMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "orders", ignore = true)
     @Mapping(target = "owner", ignore = true)
+    @Mapping(target = "subscriptionType", ignore = true)
+    @Mapping(target = "tier", ignore = true)
     Code toEntity(PromoCodeCreateDto dto);
 }
