@@ -42,10 +42,10 @@ public class AdminInvoiceService {
         SubscriptionType subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         SubscriptionPlan subscriptionPlan = subscription.getPlans()
                 .stream()
-                .filter(plan -> plan.getName().equals(dto.getPlan()))
+                .filter(plan -> plan.getName().equals(dto.getPlan()) && plan.getTier().equals(dto.getTier()))
                 .findFirst()
                 .orElseThrow(() -> new DataValidationException(
-                        dto.getPlan() + " plan not found for subscription " + SubscriptionName.COURSESTOOLS));
+                        dto.getTier() + " " + dto.getPlan() + " plan not found"));
 
         UserSubscription userSubscription = userSubscriptionService
                 .getUserSubBySubTypeIdNotTerminated(user.getId(), subscriptionPlan.getSubscriptionType().getId())

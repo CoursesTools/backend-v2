@@ -1,5 +1,6 @@
 package com.winworld.coursestools.dto.admin;
 
+import com.winworld.coursestools.enums.SubscriptionTier;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -15,4 +16,6 @@ public class ChangeUserAccessDto {
     private String tradingViewName;
     @NotNull(message = NOT_NULL_MESSAGE)
     private LocalDate expiredAt;
+    @NotNull(message = NOT_NULL_MESSAGE)
+    private SubscriptionTier tier;
 }

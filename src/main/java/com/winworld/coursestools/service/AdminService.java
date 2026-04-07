@@ -85,7 +85,7 @@ public class AdminService {
                 subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt());
             }
         } else {
-            subscriptionService.createNewSubscription(user, dto.getIsTrial(), dto.getExpiredAt());
+            subscriptionService.createNewSubscription(user, dto.getIsTrial(), dto.getExpiredAt(), dto.getTier());
         }
     }
 

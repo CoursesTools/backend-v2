@@ -242,14 +242,17 @@ public class SubscriptionService {
     public UserSubscription createNewSubscription(
             User user,
             boolean isTrial,
-            LocalDate expiredAt
+            LocalDate expiredAt,
+            SubscriptionTier tier
     ) {
         UserSubscription newSubscription = new UserSubscription();
 
+        // Trials always grant PRO access regardless of requested tier
+        SubscriptionTier effectiveTier = isTrial ? SubscriptionTier.PRO : tier;
         var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
-                .filter(p -> p.getTier() == SubscriptionTier.PRO && p.getName() == Plan.MONTH)
+                .filter(p -> p.getTier() == effectiveTier && p.getName() == Plan.MONTH)
                 .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException("Pro monthly plan not found"));
+                .orElseThrow(() -> new EntityNotFoundException(effectiveTier + " monthly plan not found"));
 
         newSubscription.setPlan(plan);
         newSubscription.setPrice(plan.getPrice());
