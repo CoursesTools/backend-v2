@@ -6,6 +6,7 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+.claude/
 
 ### STS ###
 .apt_generated
@@ -57,5 +58,6 @@ DOCKER_DB.md
 /TRANSP_FOLDER/
 /claude-docs/
 /claude-plans/
+/claude-git/
 
 tmp_alerts_insert.sql

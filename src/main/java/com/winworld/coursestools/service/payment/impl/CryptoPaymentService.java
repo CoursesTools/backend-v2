@@ -27,7 +27,9 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 @Slf4j
 public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
     public static final String INVOICE_ID = "invoiceId";
+    public static final String STATUS_SUCCESS = "success";
     private static final String INVOICE_CREATE_URL = "https://api.cryptocloud.plus/v2/invoice/create";
+    private static final String CURRENCY_USD = "USD";
     private static final Integer TIME_TO_PAY = 24;
 
     private final RestTemplate restTemplate;
@@ -56,16 +58,28 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
 
         CryptoInvoiceCreateDto createDto = CryptoInvoiceCreateDto.builder()
                 .amount(amountInUsd)
+                .currency(CURRENCY_USD)
                 .email(dto.getEmail())
                 .shopId(shopId)
                 .orderId(dto.getOrderId().toString())
                 .additionalFields(additionalFields)
                 .build();
 
+        log.info("Creating CryptoCloud invoice for order {} (amount={} {}, plan='{}')",
+                dto.getOrderId(), amountInUsd, CURRENCY_USD, dto.getPlanDisplayName());
+
         var response = restTemplate.postForObject(
                 INVOICE_CREATE_URL, createDto, CryptoInvoiceCreateResponse.class
         );
 
+        if (response == null || response.getResult() == null || response.getResult().getLink() == null) {
+            log.error("CryptoCloud invoice/create returned empty result for order {}: {}",
+                    dto.getOrderId(), response);
+            throw new PaymentProcessingException("CryptoCloud returned empty invoice response");
+        }
+
+        log.info("CryptoCloud invoice created for order {}: status={}, link={}",
+                dto.getOrderId(), response.getStatus(), response.getResult().getLink());
         return response.getResult().getLink();
     }
 
@@ -76,9 +90,28 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
 
     @Override
     public ProcessPaymentDto processPayment(CryptoRetrieveDto paymentRequest) {
+        log.info("Processing CryptoCloud postback: orderId={}, invoiceId={}, status={}",
+                paymentRequest.getOrderId(),
+                paymentRequest.getInvoiceId(),
+                paymentRequest.getStatus());
+
         validatePaymentSignature(paymentRequest);
+
+        // CryptoCloud may send postbacks with non-success statuses (partial, fail, canceled).
+        // Only "success" should grant access. If status is null we accept it for backwards
+        // compatibility with form-urlencoded postbacks that may not include the field.
+        String status = paymentRequest.getStatus();
+        if (status != null && !STATUS_SUCCESS.equalsIgnoreCase(status)) {
+            log.warn("Ignoring CryptoCloud postback for order {} with non-success status '{}'",
+                    paymentRequest.getOrderId(), status);
+            return null;
+        }
+
         Map<String, Object> paymentData = Map.of(INVOICE_ID, paymentRequest.getInvoiceId());
         int orderId = Integer.parseInt(paymentRequest.getOrderId());
+
+        log.info("CryptoCloud postback validated for order {} (invoice {})",
+                orderId, paymentRequest.getInvoiceId());
 
         return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
@@ -92,13 +125,18 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
                     paymentRequest.getToken(), "id", String.class
             );
             if (!invoiceId.equals(paymentRequest.getInvoiceId())) {
+                log.error("CryptoCloud postback invoice id mismatch: token claim '{}' vs body '{}'",
+                        invoiceId, paymentRequest.getInvoiceId());
                 throw new PaymentProcessingException("Invoice ids do not match");
             }
         } catch (ExpiredJwtException e) {
-            log.error("Expired JWT token while process Crypto POSTBACK", e);
+            log.error("Expired JWT token while processing CryptoCloud POSTBACK for order {}",
+                    paymentRequest.getOrderId(), e);
             throw new PaymentProcessingException("Expired JWT token");
         } catch (SignatureException e) {
-            log.error("Signature not valid while process Crypto POSTBACK", e);
+            log.error("Invalid JWT signature while processing CryptoCloud POSTBACK for order {} " +
+                            "(check CRYPTO_SECRET matches the project SECRET KEY in CryptoCloud dashboard)",
+                    paymentRequest.getOrderId(), e);
             throw new PaymentProcessingException("Signature not valid");
         }
     }
@@ -117,8 +155,11 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
 
     private String handleFallback(CreatePaymentLinkDto dto, Throwable throwable) {
         log.error(
-                "Error while creating CryptoCloud invoice for order: {}",
+                "Error while creating CryptoCloud invoice for order {} (amount={}, plan='{}'): {}",
                 dto.getOrderId(),
+                dto.getTotalPrice(),
+                dto.getPlanDisplayName(),
+                throwable.getMessage(),
                 throwable
         );
         throw new PaymentProcessingException("Payment link creation failed");
