@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -178,6 +180,19 @@ public class GlobalExceptionHandler {
                 "Access denied",
                 e.getMessage()
         );
+    }
+
+    /**
+     * Client disconnected before we finished writing the response — nothing to
+     * respond to. Logged at DEBUG so it doesn't flood the log, and returns void
+     * so Spring does not try to serialise an {@link ErrorResponse} body (which
+     * would cascade into a {@code HttpMessageNotWritableException} when the
+     * request had negotiated a non-JSON content type, e.g. Prometheus scrapes
+     * on {@code /actuator/prometheus} with {@code application/openmetrics-text}).
+     */
+    @ExceptionHandler({ClientAbortException.class, AsyncRequestNotUsableException.class})
+    public void handleClientDisconnect(final Exception e) {
+        log.debug("Client disconnected before response completed: {}", e.getMessage());
     }
 
     @ExceptionHandler
