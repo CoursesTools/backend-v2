@@ -16,9 +16,11 @@ import com.winworld.coursestools.service.payment.impl.CryptoPaymentService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class PaymentFacade {
     private final StripePaymentService stripePaymentService;
@@ -40,7 +42,13 @@ public class PaymentFacade {
     }
 
     public void retrieveCryptoPayment(CryptoRetrieveDto dto) {
-        processOrder(cryptoPaymentService.processPayment(dto));
+        ProcessPaymentDto paymentDto = cryptoPaymentService.processPayment(dto);
+        if (paymentDto == null) {
+            log.info("CryptoCloud postback for order {} did not produce a payment to process " +
+                    "(non-success status)", dto.getOrderId());
+            return;
+        }
+        processOrder(paymentDto);
     }
 
     public void retrieveBalancePayment(BalanceRetrieveDto dto) {
@@ -63,6 +71,7 @@ public class PaymentFacade {
     }
 
     private void processOrder(ProcessPaymentDto dto) {
+        log.info("Forwarding payment to OrderService: orderId={}", dto.getOrderId());
         orderService.processSuccessfulPayment(dto);
     }
 }
