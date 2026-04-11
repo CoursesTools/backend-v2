@@ -7,10 +7,12 @@ import com.winworld.coursestools.dto.payment.crypto.CryptoInvoiceCreateResponse;
 import com.winworld.coursestools.dto.payment.crypto.CryptoRetrieveDto;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.exception.exceptions.PaymentProcessingException;
+import com.winworld.coursestools.exception.exceptions.SecurityException;
 import com.winworld.coursestools.service.payment.PaymentService;
 import com.winworld.coursestools.util.jwt.impl.CryptoJwtTokenUtil;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.SignatureException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -127,17 +129,21 @@ public class CryptoPaymentService extends PaymentService<CryptoRetrieveDto> {
             if (!invoiceId.equals(paymentRequest.getInvoiceId())) {
                 log.error("CryptoCloud postback invoice id mismatch: token claim '{}' vs body '{}'",
                         invoiceId, paymentRequest.getInvoiceId());
-                throw new PaymentProcessingException("Invoice ids do not match");
+                throw new SecurityException("Invoice ids do not match");
             }
         } catch (ExpiredJwtException e) {
             log.error("Expired JWT token while processing CryptoCloud POSTBACK for order {}",
                     paymentRequest.getOrderId(), e);
-            throw new PaymentProcessingException("Expired JWT token");
+            throw new SecurityException("Expired JWT token");
         } catch (SignatureException e) {
             log.error("Invalid JWT signature while processing CryptoCloud POSTBACK for order {} " +
                             "(check CRYPTO_SECRET matches the project SECRET KEY in CryptoCloud dashboard)",
                     paymentRequest.getOrderId(), e);
-            throw new PaymentProcessingException("Signature not valid");
+            throw new SecurityException("Signature not valid");
+        } catch (JwtException | IllegalArgumentException e) {
+            log.error("Invalid JWT token while processing CryptoCloud POSTBACK for order {}",
+                    paymentRequest.getOrderId(), e);
+            throw new SecurityException("Token not valid");
         }
     }
 
