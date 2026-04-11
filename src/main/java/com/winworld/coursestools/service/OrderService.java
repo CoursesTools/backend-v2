@@ -17,6 +17,7 @@ import com.winworld.coursestools.enums.TransactionType;
 import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.repository.OrderRepository;
+import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.service.user.UserTransactionService;
@@ -135,6 +136,15 @@ public class OrderService {
                 .getUserSubBySubTypeIdNotTerminated(user.getId(), order.getPlan().getSubscriptionType().getId())
                 .orElse(null);
 
+        if (isRecurrentPayment && isDuplicateStripeInvoice(userSubscription, dto)) {
+            log.info(
+                    "Skipping duplicate Stripe invoice webhook for order {} and invoice {}",
+                    order.getId(),
+                    dto.getPaymentProviderData().get(StripePaymentService.INVOICE_ID)
+            );
+            return;
+        }
+
         subscriptionService.updateUserSubscriptionAfterPayment(
                 userSubscription,
                 order,
@@ -167,6 +177,18 @@ public class OrderService {
             order.setStatus(OrderStatus.PAID);
         }
         log.info("Order {} for user {} processed successfully", order.getId(), user.getId());
+    }
+
+    private boolean isDuplicateStripeInvoice(UserSubscription userSubscription, ProcessPaymentDto dto) {
+        if (userSubscription == null || dto.getPaymentProviderData() == null) {
+            return false;
+        }
+        Object incomingInvoiceId = dto.getPaymentProviderData().get(StripePaymentService.INVOICE_ID);
+        if (incomingInvoiceId == null || userSubscription.getPaymentProviderData() == null) {
+            return false;
+        }
+        Object processedInvoiceId = userSubscription.getPaymentProviderData().get(StripePaymentService.INVOICE_ID);
+        return incomingInvoiceId.equals(processedInvoiceId);
     }
 
     public Page<Order> getUserOrders(int userId, Pageable pageable) {

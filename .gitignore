@@ -59,5 +59,9 @@ DOCKER_DB.md
 /claude-docs/
 /claude-plans/
 /claude-git/
+/claude-payment-issue/
+/codex-corner/
 
 tmp_alerts_insert.sql
+
+AGENTS.md

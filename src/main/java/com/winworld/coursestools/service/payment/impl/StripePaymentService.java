@@ -50,6 +50,8 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public static final String CUSTOMER_ID = "customerId";
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String CURRENT_PERIOD_END = "currentPeriodEnd";
+    public static final String INVOICE_ID = "invoiceId";
+    private static final String ORDER_ID = "order_id";
 
     private final StripeProperties properties;
 
@@ -230,13 +232,15 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 Session session = (Session) event.getDataObjectDeserializer().deserializeUnsafe();
                 String mode = session.getMode();
 
-                if (mode.equals(SessionCreateParams.Mode.PAYMENT.getValue())) {
+                if (SessionCreateParams.Mode.PAYMENT.getValue().equals(mode)) {
                     return processCheckoutSession(paymentRequest);
                 } else {
+                    log.info("Ignoring Stripe checkout.session.completed webhook for mode={}", mode);
                     return null;
                 }
             } else {
-                throw new PaymentProcessingException("Unsupported event type: " + eventType);
+                log.info("Ignoring unsupported Stripe webhook event: {}", eventType);
+                return null;
             }
         } catch (SignatureVerificationException e) {
             throw new SecurityException(e.getMessage());
@@ -252,10 +256,12 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
 
         Map<String, Object> paymentData = new java.util.HashMap<>();
         paymentData.put(CUSTOMER_ID, invoice.getCustomer());
+        paymentData.put(INVOICE_ID, invoice.getId());
+        Subscription subscription = null;
         if (invoice.getSubscription() != null) {
             paymentData.put(SUBSCRIPTION_ID, invoice.getSubscription());
             try {
-                Subscription subscription = Subscription.retrieve(invoice.getSubscription());
+                subscription = Subscription.retrieve(invoice.getSubscription());
                 paymentData.put(CURRENT_PERIOD_END, subscription.getCurrentPeriodEnd());
             } catch (StripeException e) {
                 log.error("Failed to retrieve subscription details for subscription: {}", invoice.getSubscription(), e);
@@ -264,7 +270,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
 
         return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
-                .orderId(getOrderIdFromInvoice(invoice))
+                .orderId(getOrderIdFromInvoice(invoice, subscription))
                 .build();
     }
 
@@ -286,17 +292,33 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 .build();
     }
 
-    private Integer getOrderIdFromInvoice(Invoice invoice) {
+    private Integer getOrderIdFromInvoice(Invoice invoice, Subscription subscription) {
+        String orderId = getOrderIdFromInvoiceLine(invoice);
+        if (orderId == null && invoice.getMetadata() != null) {
+            orderId = invoice.getMetadata().get(ORDER_ID);
+        }
+        if (orderId == null && subscription != null && subscription.getMetadata() != null) {
+            orderId = subscription.getMetadata().get(ORDER_ID);
+        }
+        if (orderId == null) {
+            throw new PaymentProcessingException("Order ID not found in invoice, invoice line, or subscription metadata");
+        }
+        return parseOrderId(orderId);
+    }
+
+    private String getOrderIdFromInvoiceLine(Invoice invoice) {
         if (invoice.getLines() == null || invoice.getLines().getData().isEmpty()) {
-            throw new PaymentProcessingException("Invoice has no line items");
+            return null;
         }
 
         var lineItem = invoice.getLines().getData().get(0);
-        if (lineItem.getMetadata() == null || !lineItem.getMetadata().containsKey("order_id")) {
-            throw new PaymentProcessingException("Order ID not found in invoice metadata");
+        if (lineItem.getMetadata() == null) {
+            return null;
         }
+        return lineItem.getMetadata().get(ORDER_ID);
+    }
 
-        String orderId = lineItem.getMetadata().get("order_id");
+    private Integer parseOrderId(String orderId) {
         try {
             return Integer.parseInt(orderId);
         } catch (NumberFormatException e) {
@@ -305,11 +327,11 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     }
 
     private Integer getOrderIdFromSession(Session session) {
-        if (session.getMetadata() == null || !session.getMetadata().containsKey("order_id")) {
+        if (session.getMetadata() == null || !session.getMetadata().containsKey(ORDER_ID)) {
             throw new PaymentProcessingException("Order ID not found in session metadata");
         }
 
-        String orderId = session.getMetadata().get("order_id");
+        String orderId = session.getMetadata().get(ORDER_ID);
         try {
             return Integer.parseInt(orderId);
         } catch (NumberFormatException e) {
@@ -379,11 +401,12 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 )
                 .setSubscriptionData(
                         SubscriptionData.builder()
-                                .putMetadata("order_id", dto.getOrderId().toString())
+                                .putMetadata(ORDER_ID, dto.getOrderId().toString())
                                 .build()
                 )
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setCustomerEmail(dto.getEmail());
+                .setCustomerEmail(dto.getEmail())
+                .putMetadata(ORDER_ID, dto.getOrderId().toString());
 
         if (discount != null) {
             params.addDiscount(discount);
