@@ -13,7 +13,7 @@ import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.TransactionType;
-import com.winworld.coursestools.repository.OrderRepository;
+import com.winworld.coursestools.repository.user.UserTransactionRepository;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
@@ -41,7 +41,7 @@ public class AdminService {
     private final UserDataService userDataService;
     private final UserSubscriptionService userSubscriptionService;
     private final UserMapper userMapper;
-    private final OrderRepository orderRepository;
+    private final UserTransactionRepository userTransactionRepository;
 
     public StatisticsReadDto getStatistics(LocalDate start, LocalDate end) {
         var startPlanData = subscriptionService.getActiveUsersCountOnDateWithPlan(start)
@@ -122,7 +122,7 @@ public class AdminService {
 
     public Map<SubscriptionTier, Map<Plan, Integer>> getPurchasedPlansByTier(LocalDate start, LocalDate end) {
         Map<SubscriptionTier, Map<Plan, Integer>> result = emptyTierPlanMatrix();
-        var rows = orderRepository.countPaidOrdersByTierAndPlan(start.atStartOfDay(), end.atStartOfDay());
+        var rows = userTransactionRepository.countPurchasesByTierAndPlan(start.atStartOfDay(), end.atStartOfDay());
         for (TierPlanOrderCount row : rows) {
             if (row.getTier() == null || row.getPlan() == Plan.TRIAL) {
                 continue;
