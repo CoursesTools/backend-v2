@@ -7,6 +7,7 @@ import com.winworld.coursestools.entity.Code;
 import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.DiscountType;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -41,6 +42,7 @@ public class CodeService {
         Code code = Code.builder()
                 .code(stringGeneratorUtil.generatePartnerCode())
                 .owner(user)
+                .tier(SubscriptionTier.PRO)
                 .discountType(DiscountType.PERCENTAGE)
                 .discountValue(partnershipProps.getDiscount())
                 .build();
