@@ -3,6 +3,7 @@ package com.winworld.coursestools.service;
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
+import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.entity.Order;
@@ -372,5 +373,9 @@ public class SubscriptionService {
 
     public List<PlanSubscriptionCount> getActiveUsersCountOnDateWithPlan(LocalDate date) {
         return userSubscriptionRepository.countActiveSubscriptionsOnDate(date.atStartOfDay());
+    }
+
+    public List<TierPlanSubscriptionCount> getActiveSubscriptionsByTierAndPlan() {
+        return userSubscriptionRepository.countActiveSubscriptionsByTierAndPlan();
     }
 }

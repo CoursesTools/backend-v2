@@ -1,5 +1,6 @@
 package com.winworld.coursestools.mapper;
 
+import com.winworld.coursestools.dto.admin.AdminOrderReadDto;
 import com.winworld.coursestools.dto.order.ReadOrderDto;
 import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.entity.Order;
@@ -17,6 +18,14 @@ public interface OrderMapper {
     @Mapping(target = "tier", source = "plan.tier")
     @Mapping(target = "code", source = "code.code")
     ReadOrderDto toDto(Order order);
+
+    @Mapping(target = "userId", source = "user.id")
+    @Mapping(target = "userEmail", source = "user.email")
+    @Mapping(target = "tradingViewName", source = "user.social.tradingViewName")
+    @Mapping(target = "plan", source = "plan.displayName")
+    @Mapping(target = "tier", source = "plan.tier")
+    @Mapping(target = "code", source = "code.code")
+    AdminOrderReadDto toAdminDto(Order order);
 
     @Mapping(target = "orderId", source = "id")
     @Mapping(target = "email", source = "user.email")
