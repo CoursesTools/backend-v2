@@ -81,7 +81,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
                 FROM UserSubscription us
                 WHERE us.status IN :statuses
                   AND us.expiredAt > CURRENT_TIMESTAMP
-                  AND us.plan.name <> 'TRIAL'
+                  AND us.isTrial = false
                 GROUP BY us.plan.tier, us.plan.name
             """)
     List<TierPlanSubscriptionCount> countActiveSubscriptionsByTierAndPlan(
