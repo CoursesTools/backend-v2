@@ -1,10 +1,14 @@
 package com.winworld.coursestools.dto.payment.crypto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.Map;
 
 import static com.winworld.coursestools.constants.ValidationMessages.NOT_BLANK_MESSAGE;
 
@@ -17,6 +21,7 @@ import static com.winworld.coursestools.constants.ValidationMessages.NOT_BLANK_M
  */
 @Data
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CryptoRetrieveDto {
 
     @NotBlank(message = NOT_BLANK_MESSAGE)
@@ -40,11 +45,29 @@ public class CryptoRetrieveDto {
      */
     private String status;
 
+    @JsonProperty("amount_crypto")
+    @JsonAlias({"amountCrypto"})
+    private BigDecimal amountCrypto;
+
+    private String currency;
+
+    @JsonProperty("invoice_info")
+    @JsonAlias({"invoiceInfo"})
+    private Map<String, Object> invoiceInfo;
+
     public void setInvoice_id(String invoiceId) {
         this.invoiceId = invoiceId;
     }
 
     public void setOrder_id(String orderId) {
         this.orderId = orderId;
+    }
+
+    public void setAmount_crypto(BigDecimal amountCrypto) {
+        this.amountCrypto = amountCrypto;
+    }
+
+    public void setInvoice_info(Map<String, Object> invoiceInfo) {
+        this.invoiceInfo = invoiceInfo;
     }
 }
