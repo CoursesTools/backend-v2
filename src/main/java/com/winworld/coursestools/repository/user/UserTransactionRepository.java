@@ -53,7 +53,7 @@ public interface UserTransactionRepository extends JpaRepository<UserTransaction
         WHERE ut.transactionType = 'PURCHASE'
           AND ut.order.status = 'PAID'
           AND ut.createdAt >= :start
-          AND ut.createdAt < :end
+          AND ut.createdAt <= :end
         GROUP BY ut.order.plan.tier, ut.order.plan.name
     """)
     List<TierPlanOrderCount> countPurchasesByTierAndPlan(LocalDateTime start, LocalDateTime end);
