@@ -4,6 +4,7 @@ import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
 import com.winworld.coursestools.dto.admin.StatisticsAggregation;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
+import com.winworld.coursestools.dto.order.TierPlanOrderCount;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.entity.user.User;
@@ -12,6 +13,7 @@ import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.TransactionType;
+import com.winworld.coursestools.repository.OrderRepository;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
@@ -24,9 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +41,7 @@ public class AdminService {
     private final UserDataService userDataService;
     private final UserSubscriptionService userSubscriptionService;
     private final UserMapper userMapper;
+    private final OrderRepository orderRepository;
 
     public StatisticsReadDto getStatistics(LocalDate start, LocalDate end) {
         var startPlanData = subscriptionService.getActiveUsersCountOnDateWithPlan(start)
@@ -101,21 +106,41 @@ public class AdminService {
         return userMapper.toAdminDto(user);
     }
 
-    public Map<SubscriptionTier, Map<Plan, Integer>> getActiveSubscriptionsByTierAndPlan() {
-        Map<SubscriptionTier, Map<Plan, Integer>> result = new EnumMap<>(SubscriptionTier.class);
-        for (SubscriptionTier tier : SubscriptionTier.values()) {
-            Map<Plan, Integer> planBuckets = new LinkedHashMap<>();
-            Arrays.stream(Plan.values())
-                    .filter(plan -> plan != Plan.TRIAL)
-                    .forEach(plan -> planBuckets.put(plan, 0));
-            result.put(tier, planBuckets);
-        }
-        for (TierPlanSubscriptionCount row : subscriptionService.getActiveSubscriptionsByTierAndPlan()) {
+    public Map<SubscriptionTier, Map<Plan, Integer>> getActiveSubscriptionsByTierAndPlan(boolean grantedOnly) {
+        Set<SubscriptionStatus> statuses = grantedOnly
+                ? EnumSet.of(SubscriptionStatus.GRANTED)
+                : EnumSet.of(SubscriptionStatus.GRANTED, SubscriptionStatus.GRACE_PERIOD);
+        Map<SubscriptionTier, Map<Plan, Integer>> result = emptyTierPlanMatrix();
+        for (TierPlanSubscriptionCount row : subscriptionService.getActiveSubscriptionsByTierAndPlan(statuses)) {
             if (row.getTier() == null || row.getPlan() == Plan.TRIAL) {
                 continue;
             }
             result.get(row.getTier()).put(row.getPlan(), row.getCount());
         }
         return result;
+    }
+
+    public Map<SubscriptionTier, Map<Plan, Integer>> getPurchasedPlansByTier(LocalDate start, LocalDate end) {
+        Map<SubscriptionTier, Map<Plan, Integer>> result = emptyTierPlanMatrix();
+        var rows = orderRepository.countPaidOrdersByTierAndPlan(start.atStartOfDay(), end.atStartOfDay());
+        for (TierPlanOrderCount row : rows) {
+            if (row.getTier() == null || row.getPlan() == Plan.TRIAL) {
+                continue;
+            }
+            result.get(row.getTier()).put(row.getPlan(), row.getCount());
+        }
+        return result;
+    }
+
+    private Map<SubscriptionTier, Map<Plan, Integer>> emptyTierPlanMatrix() {
+        Map<SubscriptionTier, Map<Plan, Integer>> matrix = new EnumMap<>(SubscriptionTier.class);
+        for (SubscriptionTier tier : SubscriptionTier.values()) {
+            Map<Plan, Integer> planBuckets = new LinkedHashMap<>();
+            Arrays.stream(Plan.values())
+                    .filter(plan -> plan != Plan.TRIAL)
+                    .forEach(plan -> planBuckets.put(plan, 0));
+            matrix.put(tier, planBuckets);
+        }
+        return matrix;
     }
 }
