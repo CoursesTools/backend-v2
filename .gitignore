@@ -61,6 +61,7 @@ DOCKER_DB.md
 /claude-git/
 /claude-payment-issue/
 /codex-corner/
+/claude-msgs/
 
 tmp_alerts_insert.sql
 

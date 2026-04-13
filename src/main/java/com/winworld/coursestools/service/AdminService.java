@@ -5,10 +5,12 @@ import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
 import com.winworld.coursestools.dto.admin.StatisticsAggregation;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
+import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
+import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.TransactionType;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.user.UserDataService;
@@ -20,7 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -94,5 +99,23 @@ public class AdminService {
     public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId) {
         User user = userDataService.getUserInfo(tradingViewName, email, userId);
         return userMapper.toAdminDto(user);
+    }
+
+    public Map<SubscriptionTier, Map<Plan, Integer>> getActiveSubscriptionsByTierAndPlan() {
+        Map<SubscriptionTier, Map<Plan, Integer>> result = new EnumMap<>(SubscriptionTier.class);
+        for (SubscriptionTier tier : SubscriptionTier.values()) {
+            Map<Plan, Integer> planBuckets = new LinkedHashMap<>();
+            Arrays.stream(Plan.values())
+                    .filter(plan -> plan != Plan.TRIAL)
+                    .forEach(plan -> planBuckets.put(plan, 0));
+            result.put(tier, planBuckets);
+        }
+        for (TierPlanSubscriptionCount row : subscriptionService.getActiveSubscriptionsByTierAndPlan()) {
+            if (row.getTier() == null || row.getPlan() == Plan.TRIAL) {
+                continue;
+            }
+            result.get(row.getTier()).put(row.getPlan(), row.getCount());
+        }
+        return result;
     }
 }
