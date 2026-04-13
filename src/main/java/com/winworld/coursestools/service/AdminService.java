@@ -122,7 +122,10 @@ public class AdminService {
 
     public Map<SubscriptionTier, Map<Plan, Integer>> getPurchasedPlansByTier(LocalDate start, LocalDate end) {
         Map<SubscriptionTier, Map<Plan, Integer>> result = emptyTierPlanMatrix();
-        var rows = userTransactionRepository.countPurchasesByTierAndPlan(start.atStartOfDay(), end.atStartOfDay());
+        var rows = userTransactionRepository.countPurchasesByTierAndPlan(
+                start.atStartOfDay(),
+                end.atTime(java.time.LocalTime.MAX)
+        );
         for (TierPlanOrderCount row : rows) {
             if (row.getTier() == null || row.getPlan() == Plan.TRIAL) {
                 continue;
