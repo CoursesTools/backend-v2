@@ -43,8 +43,19 @@ public class AdminController {
 
     @GetMapping("/statistics/plans-by-tier")
     @PreAuthorize("hasRole('ADMIN')")
-    public Map<SubscriptionTier, Map<Plan, Integer>> getPlansByTier() {
-        return adminService.getActiveSubscriptionsByTierAndPlan();
+    public Map<SubscriptionTier, Map<Plan, Integer>> getPlansByTier(
+            @RequestParam(defaultValue = "false") boolean grantedOnly
+    ) {
+        return adminService.getActiveSubscriptionsByTierAndPlan(grantedOnly);
+    }
+
+    @GetMapping("/statistics/plans-purchased")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<SubscriptionTier, Map<Plan, Integer>> getPlansPurchased(
+            @RequestParam LocalDate start,
+            @RequestParam LocalDate end
+    ) {
+        return adminService.getPurchasedPlansByTier(start, end);
     }
 
     @PostMapping("/access")

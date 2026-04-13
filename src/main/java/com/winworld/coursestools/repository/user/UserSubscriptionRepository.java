@@ -4,6 +4,8 @@ import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionStatus;
+
+import java.util.Collection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -77,10 +79,12 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query("""
                 SELECT us.plan.tier AS tier, us.plan.name AS plan, COUNT(us) AS count
                 FROM UserSubscription us
-                WHERE us.status IN ('GRANTED', 'GRACE_PERIOD')
+                WHERE us.status IN :statuses
                   AND us.expiredAt > CURRENT_TIMESTAMP
                   AND us.plan.name <> 'TRIAL'
                 GROUP BY us.plan.tier, us.plan.name
             """)
-    List<TierPlanSubscriptionCount> countActiveSubscriptionsByTierAndPlan();
+    List<TierPlanSubscriptionCount> countActiveSubscriptionsByTierAndPlan(
+            Collection<SubscriptionStatus> statuses
+    );
 }

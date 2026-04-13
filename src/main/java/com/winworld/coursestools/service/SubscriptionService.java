@@ -375,7 +375,9 @@ public class SubscriptionService {
         return userSubscriptionRepository.countActiveSubscriptionsOnDate(date.atStartOfDay());
     }
 
-    public List<TierPlanSubscriptionCount> getActiveSubscriptionsByTierAndPlan() {
-        return userSubscriptionRepository.countActiveSubscriptionsByTierAndPlan();
+    public List<TierPlanSubscriptionCount> getActiveSubscriptionsByTierAndPlan(
+            java.util.Collection<SubscriptionStatus> statuses
+    ) {
+        return userSubscriptionRepository.countActiveSubscriptionsByTierAndPlan(statuses);
     }
 }
