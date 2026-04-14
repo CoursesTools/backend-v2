@@ -2,6 +2,8 @@ package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -47,10 +49,13 @@ class SubscriptionStateReconciliationServiceTest {
     void discardPastGracePeriodSubscription_terminatesStaleSubscriptionAndReturnsEmpty() {
         User user = new User();
         user.setId(33);
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setName(Plan.MONTH);
 
         UserSubscription userSubscription = UserSubscription.builder()
                 .id(10)
                 .user(user)
+                .plan(plan)
                 .status(SubscriptionStatus.GRACE_PERIOD)
                 .isTrial(false)
                 .expiredAt(LocalDateTime.now().minusDays(SubscriptionService.GRACE_PERIOD_DAYS + 1L))
@@ -65,8 +70,12 @@ class SubscriptionStateReconciliationServiceTest {
 
     @Test
     void discardPastGracePeriodSubscription_keepsUsableSubscription() {
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setName(Plan.MONTH);
+
         UserSubscription userSubscription = UserSubscription.builder()
                 .id(11)
+                .plan(plan)
                 .status(SubscriptionStatus.GRANTED)
                 .isTrial(false)
                 .expiredAt(LocalDateTime.now().minusDays(1))
@@ -81,12 +90,33 @@ class SubscriptionStateReconciliationServiceTest {
     }
 
     @Test
+    void discardPastGracePeriodSubscription_keepsLifetimeSubscriptionEvenIfExpiredAtLooksOld() {
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setName(Plan.LIFETIME);
+
+        UserSubscription userSubscription = UserSubscription.builder()
+                .id(12)
+                .plan(plan)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now().minusYears(2))
+                .build();
+
+        Optional<UserSubscription> result = subscriptionStateReconciliationService
+                .discardPastGracePeriodSubscription(userSubscription);
+
+        assertTrue(result.isPresent());
+        assertEquals(userSubscription, result.get());
+        verify(subscriptionDeactivationService, never()).terminatePastGracePeriodSubscription(anyInt());
+    }
+
+    @Test
     void reconcilePastGracePeriodSubscriptions_terminatesEveryStaleSubscription() {
         UserSubscription first = UserSubscription.builder().id(1).build();
         UserSubscription second = UserSubscription.builder().id(2).build();
-        when(userSubscriptionRepository.findAllNonTerminatedPastGracePeriod(any(LocalDateTime.class)))
+        when(userSubscriptionRepository.findAllNonTerminatedPastGracePeriod(any(LocalDateTime.class), any()))
                 .thenReturn(List.of(first, second));
-        when(userSubscriptionRepository.countAllNonTerminatedPastGracePeriod(any(LocalDateTime.class))).thenReturn(0L);
+        when(userSubscriptionRepository.countAllNonTerminatedPastGracePeriod(any(LocalDateTime.class), any())).thenReturn(0L);
 
         int terminated = subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("test");
 

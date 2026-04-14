@@ -100,8 +100,8 @@ class UserSubscriptionServiceTest {
 
     @Test
     void getCurrentUserSubBySubType_WithUsableSubscription_ReturnsSubscription() {
-        when(userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId))
-                .thenReturn(Optional.of(testUserSubscription));
+        when(userSubscriptionRepository.findAllCurrentBySubTypeNotTerminatedWithPlan(subscriptionTypeId, userId))
+                .thenReturn(List.of(testUserSubscription));
         when(subscriptionStateReconciliationService.discardPastGracePeriodSubscription(testUserSubscription))
                 .thenReturn(Optional.of(testUserSubscription));
 
@@ -114,8 +114,8 @@ class UserSubscriptionServiceTest {
 
     @Test
     void getCurrentUserSubBySubType_WithPastGraceSubscription_ReturnsEmptyOptional() {
-        when(userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId))
-                .thenReturn(Optional.of(testUserSubscription));
+        when(userSubscriptionRepository.findAllCurrentBySubTypeNotTerminatedWithPlan(subscriptionTypeId, userId))
+                .thenReturn(List.of(testUserSubscription));
         when(subscriptionStateReconciliationService.discardPastGracePeriodSubscription(testUserSubscription))
                 .thenReturn(Optional.empty());
 
@@ -123,6 +123,17 @@ class UserSubscriptionServiceTest {
 
         assertTrue(result.isEmpty());
         verify(subscriptionStateReconciliationService).discardPastGracePeriodSubscription(testUserSubscription);
+    }
+
+    @Test
+    void getCurrentUserSubBySubType_NoSubscriptions_ReturnsEmptyOptional() {
+        when(userSubscriptionRepository.findAllCurrentBySubTypeNotTerminatedWithPlan(subscriptionTypeId, userId))
+                .thenReturn(List.of());
+
+        Optional<UserSubscription> result = userSubscriptionService.getCurrentUserSubBySubTypeId(userId, subscriptionTypeId);
+
+        assertTrue(result.isEmpty());
+        verify(subscriptionStateReconciliationService, never()).discardPastGracePeriodSubscription(any());
     }
 
     @Test

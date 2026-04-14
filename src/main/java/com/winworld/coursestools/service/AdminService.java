@@ -13,6 +13,7 @@ import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.TransactionType;
+import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.repository.user.UserTransactionRepository;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.user.UserDataService;
@@ -88,16 +89,27 @@ public class AdminService {
         var user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
         var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         var userSubscriptionOptional = userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), subscription.getId());
-        if (userSubscriptionOptional.isPresent()) {
-            var userSubscription = userSubscriptionOptional.get();
-            if (userSubscription.getStatus() == SubscriptionStatus.GRACE_PERIOD) {
-                subscriptionService.updateGracePeriodSubscription(userSubscription, user, dto.getExpiredAt());
-            }
-            else {
-                subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt());
+        boolean lifetime = Boolean.TRUE.equals(dto.getIsLifetime());
+        if (!lifetime && dto.getExpiredAt() == null) {
+            throw new DataValidationException("expiredAt is required when isLifetime is not set");
+        }
+        if (lifetime) {
+            if (userSubscriptionOptional.isPresent()) {
+                subscriptionService.grantLifetimeToExistingSubscription(userSubscriptionOptional.get(), user, dto.getTier());
+            } else {
+                subscriptionService.createNewLifetimeSubscription(user, dto.getTier());
             }
         } else {
-            subscriptionService.createNewSubscription(user, dto.getIsTrial(), dto.getExpiredAt(), dto.getTier());
+            if (userSubscriptionOptional.isPresent()) {
+                var userSubscription = userSubscriptionOptional.get();
+                if (userSubscription.getStatus() == SubscriptionStatus.GRACE_PERIOD) {
+                    subscriptionService.updateGracePeriodSubscription(userSubscription, user, dto.getExpiredAt());
+                } else {
+                    subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt());
+                }
+            } else {
+                subscriptionService.createNewSubscription(user, Boolean.TRUE.equals(dto.getIsTrial()), dto.getExpiredAt(), dto.getTier());
+            }
         }
     }
 

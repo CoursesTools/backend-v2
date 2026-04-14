@@ -31,7 +31,9 @@ public class UserSubscriptionService {
     }
 
     public Optional<UserSubscription> getCurrentUserSubBySubTypeId(int userId, int subscriptionTypeId) {
-        return getUserSubBySubTypeIdNotTerminated(userId, subscriptionTypeId)
+        return userSubscriptionRepository.findAllCurrentBySubTypeNotTerminatedWithPlan(subscriptionTypeId, userId)
+                .stream()
+                .findFirst()
                 .flatMap(subscriptionStateReconciliationService::discardPastGracePeriodSubscription);
     }
 
