@@ -3,6 +3,7 @@ package com.winworld.coursestools.repository.user;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 
 import java.util.Collection;
@@ -72,23 +73,38 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query(value = """
             SELECT us
             FROM UserSubscription us
+            JOIN FETCH us.plan p
+            WHERE us.user.id = :userId
+              AND p.subscriptionType.id = :subscriptionTypeId
+              AND us.status <> 'TERMINATED'
+            ORDER BY us.expiredAt DESC, us.updatedAt DESC, us.id DESC
+            """)
+    List<UserSubscription> findAllCurrentBySubTypeNotTerminatedWithPlan(int subscriptionTypeId, int userId);
+
+    @Query(value = """
+            SELECT us
+            FROM UserSubscription us
             JOIN FETCH us.user u
             LEFT JOIN FETCH u.referred
+            JOIN FETCH us.plan p
             WHERE us.isTrial = false
               AND us.status <> 'TERMINATED'
               AND us.expiredAt <= :cutoffDate
+              AND p.name IN :plans
             ORDER BY us.expiredAt ASC, us.id ASC
             """)
-    List<UserSubscription> findAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate);
+    List<UserSubscription> findAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate, Collection<Plan> plans);
 
     @Query(value = """
             SELECT COUNT(us)
             FROM UserSubscription us
+            JOIN us.plan p
             WHERE us.isTrial = false
               AND us.status <> 'TERMINATED'
               AND us.expiredAt <= :cutoffDate
+              AND p.name IN :plans
             """)
-    long countAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate);
+    long countAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate, Collection<Plan> plans);
 
     @Query(value = """
             SELECT us

@@ -1,11 +1,13 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 @Slf4j
 public class SubscriptionStateReconciliationService {
     private static final String PAST_GRACE_GAUGE_NAME = "subscriptions.past_grace_period.count";
+    private static final EnumSet<Plan> PAST_GRACE_RECONCILIATION_PLANS = EnumSet.of(Plan.MONTH, Plan.YEAR);
 
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionDeactivationService subscriptionDeactivationService;
@@ -31,7 +34,7 @@ public class SubscriptionStateReconciliationService {
         this.subscriptionDeactivationService = subscriptionDeactivationService;
 
         Gauge.builder(PAST_GRACE_GAUGE_NAME, this, service -> service.countSubscriptionsPastGracePeriod())
-                .description("Non-trial subscriptions that are still not terminated after the grace period expired")
+                .description("Non-trial month/year subscriptions that are still not terminated after the grace period expired")
                 .register(meterRegistry);
     }
 
@@ -52,7 +55,8 @@ public class SubscriptionStateReconciliationService {
 
     public int reconcilePastGracePeriodSubscriptions(String trigger) {
         LocalDateTime cutoffDate = getPastGraceCutoff();
-        List<Integer> subscriptionIds = userSubscriptionRepository.findAllNonTerminatedPastGracePeriod(cutoffDate)
+        List<Integer> subscriptionIds = userSubscriptionRepository
+                .findAllNonTerminatedPastGracePeriod(cutoffDate, PAST_GRACE_RECONCILIATION_PLANS)
                 .stream()
                 .map(UserSubscription::getId)
                 .toList();
@@ -102,11 +106,18 @@ public class SubscriptionStateReconciliationService {
 
     @Transactional(readOnly = true)
     public long countSubscriptionsPastGracePeriod() {
-        return userSubscriptionRepository.countAllNonTerminatedPastGracePeriod(getPastGraceCutoff());
+        return userSubscriptionRepository.countAllNonTerminatedPastGracePeriod(
+                getPastGraceCutoff(),
+                PAST_GRACE_RECONCILIATION_PLANS
+        );
     }
 
     public boolean isPastGracePeriod(UserSubscription userSubscription) {
-        if (userSubscription == null || userSubscription.getIsTrial() || userSubscription.getStatus() == TERMINATED) {
+        if (userSubscription == null
+                || userSubscription.getIsTrial()
+                || userSubscription.getStatus() == TERMINATED
+                || userSubscription.getPlan() == null
+                || !PAST_GRACE_RECONCILIATION_PLANS.contains(userSubscription.getPlan().getName())) {
             return false;
         }
         return !userSubscription.getExpiredAt().isAfter(getPastGraceCutoff());
