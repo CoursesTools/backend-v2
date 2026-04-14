@@ -114,7 +114,8 @@ public class OrderService {
 
     @Transactional
     public void processSuccessfulPayment(ProcessPaymentDto dto) {
-        Order order = getOrderById(dto.getOrderId());
+        Order order = orderRepository.findByIdForUpdate(dto.getOrderId())
+                .orElseThrow(() -> new EntityNotFoundException("Order not found"));
         Code code = order.getCode();
         User user = order.getUser();
 

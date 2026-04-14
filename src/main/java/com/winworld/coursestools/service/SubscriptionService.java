@@ -300,7 +300,18 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         var plan = order.getPlan();
-        LocalDateTime expirationDate = calculateExpirationDate(subscription.getExpiredAt(), plan, paymentProviderData);
+        // For Stripe renewals, use CURRENT_PERIOD_END + grace (Stripe controls the billing boundary).
+        // For non-Stripe renewals, extend from the current expiry by the plan duration only — do NOT
+        // add PAYMENT_GRACE_DAYS here, because the existing expiredAt already includes grace days from
+        // prior renewals and compounding them causes ~2 days of drift per renewal (~1 extra month per year).
+        LocalDateTime expirationDate;
+        if (paymentProviderData != null && paymentProviderData.containsKey(CURRENT_PERIOD_END)) {
+            Long periodEnd = (Long) paymentProviderData.get(CURRENT_PERIOD_END);
+            expirationDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEnd), ZoneOffset.UTC)
+                    .plusDays(PAYMENT_GRACE_DAYS);
+        } else {
+            expirationDate = subscription.getExpiredAt().plusDays(plan.getDurationDays());
+        }
 
         if (subscription.getPaymentMethod().equals(STRIPE) && !order.getPaymentMethod().equals(STRIPE)) {
             stripePaymentService.cancelSubscription(subscription);
