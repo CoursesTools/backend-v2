@@ -8,6 +8,7 @@ import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
+import com.winworld.coursestools.service.SubscriptionStateReconciliationService;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,9 +24,15 @@ public class UserSubscriptionService {
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final UserMapper userMapper;
     private final UserSubscriptionSpecification userSubscriptionSpecification;
+    private final SubscriptionStateReconciliationService subscriptionStateReconciliationService;
 
     public Optional<UserSubscription> getUserSubBySubTypeIdNotTerminated(int userId, int subscriptionTypeId) {
         return userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId);
+    }
+
+    public Optional<UserSubscription> getCurrentUserSubBySubTypeId(int userId, int subscriptionTypeId) {
+        return getUserSubBySubTypeIdNotTerminated(userId, subscriptionTypeId)
+                .flatMap(subscriptionStateReconciliationService::discardPastGracePeriodSubscription);
     }
 
     public UserSubscription getUserSubById(int userSubscriptionId) {

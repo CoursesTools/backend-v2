@@ -67,7 +67,7 @@ public class UserSocialService {
         user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
 
         SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
-        var userSubscriptionOptional = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
+        var userSubscriptionOptional = userSubscriptionService.getCurrentUserSubBySubTypeId(
                 user.getId(), subscriptionType.getId()
         );
         if (userSubscriptionOptional.isPresent()) {

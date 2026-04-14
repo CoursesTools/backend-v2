@@ -50,7 +50,6 @@ import static com.winworld.coursestools.service.payment.impl.StripePaymentServic
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.EXTENDED;
-import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_START;
 import static com.winworld.coursestools.enums.SubscriptionEventType.RESTORED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.TRIAL_CREATED;
@@ -79,6 +78,7 @@ public class SubscriptionService {
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final TrialActivationRepository trialActivationRepository;
     private final SubscriptionDeactivationService subscriptionDeactivationService;
+    private final SubscriptionStateReconciliationService subscriptionStateReconciliationService;
 
     @Value("${subscription.ct-pro.trial.days}")
     private int ctProTrialDays;
@@ -144,7 +144,6 @@ public class SubscriptionService {
 
     }
 
-    @Transactional
     public List<Integer> deactivateExpiredSubscriptions() {
         List<UserSubscription> usersSubscriptions = userSubscriptionService
                 .findAllExpiredSubscriptionsByStatus(GRANTED);
@@ -152,7 +151,7 @@ public class SubscriptionService {
 
         usersSubscriptions.forEach(userSubscription -> {
             try {
-                subscriptionDeactivationService.deactivateSingleSubscription(userSubscription);
+                subscriptionDeactivationService.deactivateSingleSubscription(userSubscription.getId());
                 userIds.add(userSubscription.getUser().getId());
             } catch (Exception e) {
                 log.error("Failed to deactivate subscription {} for user {}",
@@ -174,17 +173,8 @@ public class SubscriptionService {
         return usersSubscriptions.stream().map(UserSubscription::getId).collect(Collectors.toList());
     }
 
-    @Transactional
     public void deactivateExpiredGracePeriodSubscriptions() {
-        var cutoffDate = getNow().minusDays(GRACE_PERIOD_DAYS);
-        List<UserSubscription> usersSubscriptions = userSubscriptionService
-                .findExpiredSubscriptionsOlderThanDate(cutoffDate, GRACE_PERIOD);
-        usersSubscriptions.forEach(userSubscription -> {
-            userSubscription.setStatus(TERMINATED);
-            User user = userSubscription.getUser();
-            log.info("User {} subscription grace period expired", user.getId());
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), GRACE_PERIOD_END, userSubscription));
-        });
+        subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("scheduler");
     }
 
     @Transactional
@@ -359,7 +349,7 @@ public class SubscriptionService {
     public UserSubscriptionReadDto activateSubscription(SubscriptionActivateDto dto) {
         User user = userDataService.getUserByTradingViewName(dto.getUsername());
         SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
-        UserSubscription userSubscription = userSubscriptionService.getUserSubBySubTypeIdNotTerminated(
+        UserSubscription userSubscription = userSubscriptionService.getCurrentUserSubBySubTypeId(
                 user.getId(), subscriptionType.getId()
         ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
         var expiration = dto.getExpiration().atStartOfDay();
