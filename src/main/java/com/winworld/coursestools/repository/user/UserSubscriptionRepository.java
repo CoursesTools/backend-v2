@@ -23,6 +23,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             WHERE us.user_id = :userId
             AND sp.subscription_type_id = :subscriptionTypeId
             AND us.status NOT IN ('TERMINATED')
+            ORDER BY us.expired_at DESC, us.updated_at DESC, us.id DESC
+            LIMIT 1
             """, nativeQuery = true)
     Optional<UserSubscription> getUserSubBySubTypeNotTerminated(int subscriptionTypeId, int userId);
 
@@ -66,6 +68,36 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
               AND us.status = :status
             """)
     List<UserSubscription> findExpiredSubscriptionsOlderThanDays(LocalDateTime cutoffDate, SubscriptionStatus status);
+
+    @Query(value = """
+            SELECT us
+            FROM UserSubscription us
+            JOIN FETCH us.user u
+            LEFT JOIN FETCH u.referred
+            WHERE us.isTrial = false
+              AND us.status <> 'TERMINATED'
+              AND us.expiredAt <= :cutoffDate
+            ORDER BY us.expiredAt ASC, us.id ASC
+            """)
+    List<UserSubscription> findAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate);
+
+    @Query(value = """
+            SELECT COUNT(us)
+            FROM UserSubscription us
+            WHERE us.isTrial = false
+              AND us.status <> 'TERMINATED'
+              AND us.expiredAt <= :cutoffDate
+            """)
+    long countAllNonTerminatedPastGracePeriod(LocalDateTime cutoffDate);
+
+    @Query(value = """
+            SELECT us
+            FROM UserSubscription us
+            JOIN FETCH us.user u
+            LEFT JOIN FETCH u.referred
+            WHERE us.id = :id
+            """)
+    Optional<UserSubscription> findByIdWithUserDetails(int id);
 
     @Query("""
                 SELECT us.plan.name AS plan, COUNT(us) AS count

@@ -7,6 +7,7 @@ import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
+import com.winworld.coursestools.service.SubscriptionStateReconciliationService;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class UserSubscriptionServiceTest {
 
     @Mock
     private UserSubscriptionSpecification userSubscriptionSpecification;
+
+    @Mock
+    private SubscriptionStateReconciliationService subscriptionStateReconciliationService;
 
     @InjectMocks
     private UserSubscriptionService userSubscriptionService;
@@ -92,6 +96,33 @@ class UserSubscriptionServiceTest {
         // Assert
         assertFalse(result.isPresent());
         verify(userSubscriptionRepository).getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId);
+    }
+
+    @Test
+    void getCurrentUserSubBySubType_WithUsableSubscription_ReturnsSubscription() {
+        when(userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId))
+                .thenReturn(Optional.of(testUserSubscription));
+        when(subscriptionStateReconciliationService.discardPastGracePeriodSubscription(testUserSubscription))
+                .thenReturn(Optional.of(testUserSubscription));
+
+        Optional<UserSubscription> result = userSubscriptionService.getCurrentUserSubBySubTypeId(userId, subscriptionTypeId);
+
+        assertTrue(result.isPresent());
+        assertEquals(testUserSubscription, result.get());
+        verify(subscriptionStateReconciliationService).discardPastGracePeriodSubscription(testUserSubscription);
+    }
+
+    @Test
+    void getCurrentUserSubBySubType_WithPastGraceSubscription_ReturnsEmptyOptional() {
+        when(userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId))
+                .thenReturn(Optional.of(testUserSubscription));
+        when(subscriptionStateReconciliationService.discardPastGracePeriodSubscription(testUserSubscription))
+                .thenReturn(Optional.empty());
+
+        Optional<UserSubscription> result = userSubscriptionService.getCurrentUserSubBySubTypeId(userId, subscriptionTypeId);
+
+        assertTrue(result.isEmpty());
+        verify(subscriptionStateReconciliationService).discardPastGracePeriodSubscription(testUserSubscription);
     }
 
     @Test

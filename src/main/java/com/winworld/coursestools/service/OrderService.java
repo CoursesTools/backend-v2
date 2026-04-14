@@ -56,15 +56,13 @@ public class OrderService {
         User user = userDataService.getUserById(userId);
         SubscriptionPlan plan = subscriptionService.getSubscriptionPlan(createDto.getPlanId());
         UserSubscription userSubscription = userSubscriptionService
-                .getUserSubBySubTypeIdNotTerminated(userId, plan.getSubscriptionType().getId())
+                .getCurrentUserSubBySubTypeId(userId, plan.getSubscriptionType().getId())
                 .orElse(null);
         orderValidator.validateCreateOrder(user, createDto, userSubscription);
 
         BigDecimal subscriptionPrice = plan.getPrice();
 
-        if (userSubscription != null && !userSubscription.getIsTrial()
-                && userSubscription.getPlan().equals(plan)
-                && plan.getName().equals(Plan.MONTH)) {
+        if (isEligibleForMonthlyPriceCarryover(userSubscription, plan)) {
             subscriptionPrice = userSubscription.getPrice();
         }
 
@@ -133,7 +131,7 @@ public class OrderService {
         }
 
         UserSubscription userSubscription = userSubscriptionService
-                .getUserSubBySubTypeIdNotTerminated(user.getId(), order.getPlan().getSubscriptionType().getId())
+                .getCurrentUserSubBySubTypeId(user.getId(), order.getPlan().getSubscriptionType().getId())
                 .orElse(null);
 
         if (isRecurrentPayment && isDuplicateStripeInvoice(userSubscription, dto)) {
@@ -198,5 +196,12 @@ public class OrderService {
     public Order getOrderById(int id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Order not found"));
+    }
+
+    private boolean isEligibleForMonthlyPriceCarryover(UserSubscription userSubscription, SubscriptionPlan plan) {
+        return userSubscription != null
+                && !userSubscription.getIsTrial()
+                && userSubscription.getPlan().equals(plan)
+                && plan.getName().equals(Plan.MONTH);
     }
 }

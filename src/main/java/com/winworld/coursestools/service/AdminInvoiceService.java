@@ -48,7 +48,7 @@ public class AdminInvoiceService {
                         dto.getTier() + " " + dto.getPlan() + " plan not found"));
 
         UserSubscription userSubscription = userSubscriptionService
-                .getUserSubBySubTypeIdNotTerminated(user.getId(), subscriptionPlan.getSubscriptionType().getId())
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionPlan.getSubscriptionType().getId())
                 .orElse(null);
 
         if (userSubscription != null && userSubscription.getPlan().getName().equals(dto.getPlan())) {

@@ -231,7 +231,7 @@ public class AlertService {
     private UserSubscription checkUserSubscription(int userId) {
         var subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         UserSubscription userSub = userSubscriptionService
-                .getUserSubBySubTypeIdNotTerminated(userId, subscriptionType.getId())
+                .getCurrentUserSubBySubTypeId(userId, subscriptionType.getId())
                 .orElseThrow(() -> new ConflictException("You must have a subscription to use this feature"));
         User user = userDataService.getUserById(userId);
         if (user.getSocial().getTelegramId() == null) {
