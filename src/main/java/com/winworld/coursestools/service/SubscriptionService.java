@@ -65,6 +65,7 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 public class SubscriptionService {
     public static final int PAYMENT_GRACE_DAYS = 2;
     public static final int GRACE_PERIOD_DAYS = 7;
+    private static final LocalDateTime LIFETIME_EXPIRY = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
     private final UserDataService userDataService;
     private final UserMapper userMapper;
@@ -321,6 +322,50 @@ public class SubscriptionService {
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), subscription.getPlan().getTier(),
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+        activatingSubscriptionService.activateTradingViewAccess(dto);
+        subscription.setStatus(SubscriptionStatus.GRANTED);
+    }
+
+    @Transactional
+    public UserSubscription createNewLifetimeSubscription(User user, SubscriptionTier tier) {
+        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
+                .filter(p -> p.getTier() == tier && p.getName() == Plan.LIFETIME)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(tier + " lifetime plan not found"));
+
+        UserSubscription newSubscription = new UserSubscription();
+        newSubscription.setPlan(plan);
+        newSubscription.setPrice(plan.getPrice());
+        newSubscription.setPaymentMethod(PaymentMethod.MANUAL);
+        newSubscription.setPaymentProviderData(null);
+        newSubscription.setIsTrial(false);
+        newSubscription.setExpiredAt(LIFETIME_EXPIRY);
+
+        user.addSubscription(newSubscription);
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+                user.getEmail(), plan.getTier(),
+                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
+        activatingSubscriptionService.activateTradingViewAccess(dto);
+        newSubscription.setStatus(SubscriptionStatus.GRANTED);
+        return userSubscriptionService.save(newSubscription);
+    }
+
+    @Transactional
+    public void grantLifetimeToExistingSubscription(UserSubscription subscription, User user, SubscriptionTier tier) {
+        var lifetimePlan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
+                .filter(p -> p.getTier() == tier && p.getName() == Plan.LIFETIME)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(tier + " lifetime plan not found"));
+
+        if (STRIPE.equals(subscription.getPaymentMethod())) {
+            stripePaymentService.cancelSubscription(subscription);
+        }
+        subscription.setPlan(lifetimePlan);
+        subscription.setPaymentMethod(PaymentMethod.MANUAL);
+        subscription.setExpiredAt(LIFETIME_EXPIRY);
+        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+                user.getEmail(), lifetimePlan.getTier(),
                 user.getSocial().getTradingViewName(), subscription.getExpiredAt());
         activatingSubscriptionService.activateTradingViewAccess(dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
