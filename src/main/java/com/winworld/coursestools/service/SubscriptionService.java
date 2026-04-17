@@ -12,12 +12,15 @@ import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.OrderStatus;
+import com.winworld.coursestools.enums.OrderType;
 import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
+import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
@@ -230,40 +233,6 @@ public class SubscriptionService {
         return userSubscriptionService.save(newSubscription);
     }
 
-    @Transactional
-    public UserSubscription createNewSubscription(
-            User user,
-            boolean isTrial,
-            LocalDate expiredAt,
-            SubscriptionTier tier,
-            Plan planName
-    ) {
-        UserSubscription newSubscription = new UserSubscription();
-
-        // Trials always grant PRO access on the MONTH plan regardless of the request.
-        SubscriptionTier effectiveTier = isTrial ? SubscriptionTier.PRO : tier;
-        Plan effectivePlanName = isTrial ? Plan.MONTH : planName;
-        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
-                .filter(p -> p.getTier() == effectiveTier && p.getName() == effectivePlanName)
-                .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException(effectiveTier + " " + effectivePlanName + " plan not found"));
-
-        newSubscription.setPlan(plan);
-        newSubscription.setPrice(plan.getPrice());
-        newSubscription.setPaymentMethod(PaymentMethod.MANUAL);
-        newSubscription.setPaymentProviderData(null);
-        newSubscription.setIsTrial(isTrial);
-        newSubscription.setExpiredAt(expiredAt.atStartOfDay());
-
-        user.addSubscription(newSubscription);
-        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), plan.getTier(),
-                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
-        newSubscription.setStatus(SubscriptionStatus.GRANTED);
-        return userSubscriptionService.save(newSubscription);
-    }
-
     private void updateGracePeriodSubscription(
             UserSubscription subscription,
             Order order,
@@ -278,25 +247,6 @@ public class SubscriptionService {
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setPlan(order.getPlan());
         subscription.setExpiredAt(expirationDate);
-    }
-
-    @Transactional
-    public void updateGracePeriodSubscription(
-            UserSubscription subscription,
-            User user,
-            LocalDate expiredAt,
-            SubscriptionTier tier,
-            Plan planName
-    ) {
-        subscription.setStatus(PENDING);
-        subscription.setPaymentMethod(PaymentMethod.MANUAL);
-        applyAdminPlan(subscription, tier, planName);
-        subscription.setExpiredAt(expiredAt.atStartOfDay());
-        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), subscription.getPlan().getTier(),
-                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
-        subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 
     private void extendExistingSubscription(
@@ -327,36 +277,6 @@ public class SubscriptionService {
         subscription.setPaymentMethod(order.getPaymentMethod());
         subscription.setPaymentProviderData(paymentProviderData);
         subscription.setExpiredAt(expirationDate);
-    }
-
-    @Transactional
-    public void extendExistingSubscription(
-            UserSubscription subscription,
-            User user,
-            LocalDate expiredAt,
-            SubscriptionTier tier,
-            Plan planName
-    ) {
-        applyAdminPlan(subscription, tier, planName);
-        subscription.setExpiredAt(expiredAt.atStartOfDay());
-        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
-                user.getEmail(), subscription.getPlan().getTier(),
-                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
-        subscription.setStatus(SubscriptionStatus.GRANTED);
-    }
-
-    private void applyAdminPlan(UserSubscription subscription, SubscriptionTier tier, Plan planName) {
-        var current = subscription.getPlan();
-        if (current != null && current.getTier() == tier && current.getName() == planName) {
-            return;
-        }
-        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
-                .filter(p -> p.getTier() == tier && p.getName() == planName)
-                .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException(tier + " " + planName + " plan not found"));
-        subscription.setPlan(plan);
-        subscription.setPrice(plan.getPrice());
     }
 
     @Transactional
@@ -402,6 +322,146 @@ public class SubscriptionService {
         activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
+
+    // --- Admin classic/custom grant surface ----------------------------------
+
+    /**
+     * Classic MONTH/YEAR admin grant: routes through the canonical payment-update
+     * path via a transient (never-persisted) Order. Reuses every tested branch —
+     * create / extend / grace-restore, Stripe-cancel-on-switch, grace-day rules,
+     * trial-handoff. No user_transactions row is written (this is not a payment).
+     */
+    @Transactional
+    public UserSubscription adminGrantPaid(User user, SubscriptionTier tier, Plan planName) {
+        if (planName != Plan.MONTH && planName != Plan.YEAR) {
+            throw new DataValidationException("adminGrantPaid only accepts MONTH or YEAR; got " + planName);
+        }
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        SubscriptionPlan plan = subscriptionType.getPlans().stream()
+                .filter(p -> p.getTier() == tier && p.getName() == planName)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(tier + " " + planName + " plan not found"));
+
+        UserSubscription currentSub = userSubscriptionService
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
+                .orElse(null);
+
+        // Transient Order: value carrier only — never saved, not referenced after this call.
+        Order syntheticOrder = Order.builder()
+                .user(user)
+                .plan(plan)
+                .originalPrice(plan.getPrice())
+                .totalPrice(plan.getPrice())
+                .paymentMethod(PaymentMethod.MANUAL)
+                .orderType(OrderType.ONE_TIME)
+                .status(OrderStatus.PAID)
+                .build();
+
+        updateUserSubscriptionAfterPayment(currentSub, syntheticOrder, user, null);
+
+        // Re-read — updateUserSubscriptionAfterPayment may have created a new row when
+        // currentSub was null or a trial.
+        return userSubscriptionService
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Subscription missing after classic grant"));
+    }
+
+    @Transactional
+    public UserSubscription adminGrantLifetime(User user, SubscriptionTier tier) {
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        UserSubscription current = userSubscriptionService
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
+                .orElse(null);
+        if (current == null) {
+            return createNewLifetimeSubscription(user, tier);
+        }
+        grantLifetimeToExistingSubscription(current, user, tier);
+        return current;
+    }
+
+    /**
+     * Admin trial grant with caller-supplied expiry. If user has a non-trial active
+     * sub → 400. If an active trial exists → extend it. Else → create a fresh
+     * trial (same shape as the self-serve signup trial).
+     */
+    @Transactional
+    public UserSubscription adminGrantTrial(User user, SubscriptionTier tier, LocalDate trialExpiresAt) {
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        UserSubscription current = userSubscriptionService
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
+                .orElse(null);
+
+        if (current != null && !Boolean.TRUE.equals(current.getIsTrial())) {
+            throw new DataValidationException(
+                    "User '" + user.getSocial().getTradingViewName()
+                            + "' already has an active subscription; cannot issue a trial");
+        }
+
+        LocalDateTime expiresAt = trialExpiresAt.atStartOfDay();
+
+        if (current != null) {
+            current.setExpiredAt(expiresAt);
+            // Trial tier is fixed to PRO in the self-serve path; keep it consistent here too
+            // when the caller asks for a specific tier (fresh plan lookup).
+            SubscriptionPlan trialPlan = subscriptionType.getPlans().stream()
+                    .filter(p -> p.getTier() == SubscriptionTier.PRO && p.getName() == Plan.MONTH)
+                    .findFirst()
+                    .orElseThrow(() -> new EntityNotFoundException("Pro monthly plan not found"));
+            current.setPlan(trialPlan);
+            UserSubscription saved = userSubscriptionService.save(current);
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+            return saved;
+        }
+
+        // Fresh trial — mirrors activateCtProTrialForUser (minus the self-serve guards).
+        SubscriptionPlan trialPlan = subscriptionType.getPlans().stream()
+                .filter(p -> p.getTier() == SubscriptionTier.PRO && p.getName() == Plan.MONTH)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("Pro monthly plan not found"));
+
+        UserSubscription newSub = UserSubscription.builder()
+                .user(user)
+                .status(PENDING)
+                .plan(trialPlan)
+                .price(BigDecimal.ZERO)
+                .isTrial(true)
+                .expiredAt(expiresAt)
+                .build();
+        user.addSubscription(newSub);
+        UserSubscription saved = userSubscriptionService.save(newSub);
+
+        // Mark the trial-used flag so the user can't also self-claim a trial after this.
+        // Skip if the row already exists (user previously self-trialed + lapsed; trial_activations.user_id is PK).
+        String tradingViewName = user.getSocial().getTradingViewName();
+        if (!trialActivationRepository.existsByTradingviewUsername(tradingViewName)) {
+            trialActivationRepository.createTrialActivation(user.getId(), tradingViewName);
+        }
+
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL_CREATED, saved));
+        return saved;
+    }
+
+    /**
+     * Custom admin update: pure expiredAt bump. Tier/plan inherited from the
+     * existing subscription. Publishes EXTENDED so the async listener re-activates
+     * TV access with the new expiry and flips status to GRANTED.
+     */
+    @Transactional
+    public UserSubscription adminCustomUpdateExpiry(User user, LocalDate expiredAt) {
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        UserSubscription current = userSubscriptionService
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
+                .orElseThrow(() -> new DataValidationException(
+                        "User '" + user.getSocial().getTradingViewName()
+                                + "' doesn't have an active subscription to update"));
+
+        current.setExpiredAt(expiredAt.atStartOfDay());
+        UserSubscription saved = userSubscriptionService.save(current);
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+        return saved;
+    }
+
+    // ------------------------------------------------------------------------
 
     private LocalDateTime getNow() {
         return LocalDateTime.now(ZoneOffset.UTC);

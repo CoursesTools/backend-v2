@@ -1,25 +1,26 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.admin.AdminUserReadDto;
-import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
+import com.winworld.coursestools.dto.admin.ClassicGrantDto;
+import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
 import com.winworld.coursestools.dto.admin.StatisticsAggregation;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
 import com.winworld.coursestools.dto.order.TierPlanOrderCount;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
+import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.entity.user.User;
+import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.TransactionType;
-import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.repository.user.UserTransactionRepository;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import com.winworld.coursestools.service.user.UserTransactionService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,42 +86,22 @@ public class AdminService {
     }
 
     @Transactional
-    public void changeUserAccess(ChangeUserAccessDto dto) {
-        var user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
-        var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
-        var userSubscriptionOptional = userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), subscription.getId());
-        boolean lifetime = Boolean.TRUE.equals(dto.getIsLifetime());
-        boolean trial = Boolean.TRUE.equals(dto.getIsTrial());
-        if (!lifetime && dto.getExpiredAt() == null) {
-            throw new DataValidationException("expiredAt is required when isLifetime is not set");
-        }
-        // Trials always run on MONTH; lifetime routes through its own path and ignores plan.
-        // For paid (non-lifetime, non-trial) grants, require MONTH or YEAR so the row stores
-        // the correct plan_id/price — otherwise admin grants land on the default MONTH plan.
-        Plan plan = trial ? Plan.MONTH : dto.getPlan();
-        if (!lifetime && !trial) {
-            if (plan == null || (plan != Plan.MONTH && plan != Plan.YEAR)) {
-                throw new DataValidationException("plan must be MONTH or YEAR for paid admin grants");
-            }
-        }
-        if (lifetime) {
-            if (userSubscriptionOptional.isPresent()) {
-                subscriptionService.grantLifetimeToExistingSubscription(userSubscriptionOptional.get(), user, dto.getTier());
-            } else {
-                subscriptionService.createNewLifetimeSubscription(user, dto.getTier());
-            }
-        } else {
-            if (userSubscriptionOptional.isPresent()) {
-                var userSubscription = userSubscriptionOptional.get();
-                if (userSubscription.getStatus() == SubscriptionStatus.GRACE_PERIOD) {
-                    subscriptionService.updateGracePeriodSubscription(userSubscription, user, dto.getExpiredAt(), dto.getTier(), plan);
-                } else {
-                    subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt(), dto.getTier(), plan);
-                }
-            } else {
-                subscriptionService.createNewSubscription(user, trial, dto.getExpiredAt(), dto.getTier(), plan);
-            }
-        }
+    public UserSubscriptionReadDto grantClassicAccess(ClassicGrantDto dto) {
+        User user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
+        UserSubscription sub = switch (dto.getPlan()) {
+            case LIFETIME -> subscriptionService.adminGrantLifetime(user, dto.getTier());
+            case TRIAL -> subscriptionService.adminGrantTrial(user, dto.getTier(), dto.getTrialExpiresAt());
+            case MONTH, YEAR -> subscriptionService.adminGrantPaid(user, dto.getTier(), dto.getPlan());
+        };
+        return userMapper.toDto(sub);
+    }
+
+    @Transactional
+    public UserSubscriptionReadDto updateCustomAccess(CustomAccessUpdateDto dto) {
+        User user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
+        return userMapper.toDto(
+                subscriptionService.adminCustomUpdateExpiry(user, dto.getExpiredAt())
+        );
     }
 
     public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId) {
