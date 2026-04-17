@@ -1,5 +1,6 @@
 package com.winworld.coursestools.dto.admin;
 
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
@@ -19,4 +20,6 @@ public class ChangeUserAccessDto {
     private LocalDate expiredAt;
     @NotNull(message = NOT_NULL_MESSAGE)
     private SubscriptionTier tier;
+    @Nullable
+    private Plan plan;
 }

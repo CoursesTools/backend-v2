@@ -8,11 +8,13 @@ import java.util.Optional;
 
 @Repository
 public interface UserSocialRepository extends JpaRepository<UserSocial, Integer> {
-    boolean existsByTradingViewName(String tradingViewName);
+    // TradingView treats usernames as case-insensitive ("TesT" == "test"); we mirror
+    // that in every lookup so admins can type any casing. Writes lowercase at bind time.
+    boolean existsByTradingViewNameIgnoreCase(String tradingViewName);
 
     boolean existsByTelegramId(String telegramId);
 
     boolean existsByDiscordId(String discordId);
 
-    Optional<UserSocial> findByTradingViewName(String tradingViewName);
+    Optional<UserSocial> findByTradingViewNameIgnoreCase(String tradingViewName);
 }

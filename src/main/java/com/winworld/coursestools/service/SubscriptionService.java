@@ -235,16 +235,18 @@ public class SubscriptionService {
             User user,
             boolean isTrial,
             LocalDate expiredAt,
-            SubscriptionTier tier
+            SubscriptionTier tier,
+            Plan planName
     ) {
         UserSubscription newSubscription = new UserSubscription();
 
-        // Trials always grant PRO access regardless of requested tier
+        // Trials always grant PRO access on the MONTH plan regardless of the request.
         SubscriptionTier effectiveTier = isTrial ? SubscriptionTier.PRO : tier;
+        Plan effectivePlanName = isTrial ? Plan.MONTH : planName;
         var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
-                .filter(p -> p.getTier() == effectiveTier && p.getName() == Plan.MONTH)
+                .filter(p -> p.getTier() == effectiveTier && p.getName() == effectivePlanName)
                 .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException(effectiveTier + " monthly plan not found"));
+                .orElseThrow(() -> new EntityNotFoundException(effectiveTier + " " + effectivePlanName + " plan not found"));
 
         newSubscription.setPlan(plan);
         newSubscription.setPrice(plan.getPrice());
@@ -257,7 +259,7 @@ public class SubscriptionService {
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), plan.getTier(),
                 user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
     }
@@ -282,15 +284,18 @@ public class SubscriptionService {
     public void updateGracePeriodSubscription(
             UserSubscription subscription,
             User user,
-            LocalDate expiredAt
+            LocalDate expiredAt,
+            SubscriptionTier tier,
+            Plan planName
     ) {
         subscription.setStatus(PENDING);
         subscription.setPaymentMethod(PaymentMethod.MANUAL);
+        applyAdminPlan(subscription, tier, planName);
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), subscription.getPlan().getTier(),
                 user.getSocial().getTradingViewName(), subscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 
@@ -328,14 +333,30 @@ public class SubscriptionService {
     public void extendExistingSubscription(
             UserSubscription subscription,
             User user,
-            LocalDate expiredAt
+            LocalDate expiredAt,
+            SubscriptionTier tier,
+            Plan planName
     ) {
+        applyAdminPlan(subscription, tier, planName);
         subscription.setExpiredAt(expiredAt.atStartOfDay());
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), subscription.getPlan().getTier(),
                 user.getSocial().getTradingViewName(), subscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
+    }
+
+    private void applyAdminPlan(UserSubscription subscription, SubscriptionTier tier, Plan planName) {
+        var current = subscription.getPlan();
+        if (current != null && current.getTier() == tier && current.getName() == planName) {
+            return;
+        }
+        var plan = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS).getPlans().stream()
+                .filter(p -> p.getTier() == tier && p.getName() == planName)
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(tier + " " + planName + " plan not found"));
+        subscription.setPlan(plan);
+        subscription.setPrice(plan.getPrice());
     }
 
     @Transactional
@@ -357,7 +378,7 @@ public class SubscriptionService {
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), plan.getTier(),
                 user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
     }
@@ -378,7 +399,7 @@ public class SubscriptionService {
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), lifetimePlan.getTier(),
                 user.getSocial().getTradingViewName(), subscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 
@@ -411,6 +432,7 @@ public class SubscriptionService {
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
         activatingSubscriptionService.activateTradingViewAccess(
+                user.getId(),
                 new ActivateTradingViewAccessDto(user.getEmail(), userSubscription.getPlan().getTier(),
                         dto.getUsername(), expiration)
         );

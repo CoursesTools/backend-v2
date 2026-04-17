@@ -44,7 +44,7 @@ public class UserDataService {
     }
 
     public User getUserByTradingViewName(String username) {
-        return userSocialRepository.findByTradingViewName(username)
+        return userSocialRepository.findByTradingViewNameIgnoreCase(username)
                 .orElseThrow(() -> new EntityNotFoundException(
                         String.format(TRADING_VIEW_NAME_NOT_FOUND, username)
                 )).getUser();
@@ -77,7 +77,7 @@ public class UserDataService {
     }
 
     public boolean existsByTradingViewName(String tradingViewName) {
-        return userSocialRepository.existsByTradingViewName(tradingViewName);
+        return userSocialRepository.existsByTradingViewNameIgnoreCase(tradingViewName);
     }
 
     public User save(User user) {

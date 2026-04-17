@@ -7,17 +7,22 @@ import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
 import com.winworld.coursestools.dto.admin.CreateCustomInvoiceDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
+import com.winworld.coursestools.dto.admin.TradingViewRetryJobFilterDto;
+import com.winworld.coursestools.dto.admin.TradingViewRetryJobReadDto;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.service.AdminInvoiceService;
 import com.winworld.coursestools.service.AdminOrderService;
 import com.winworld.coursestools.service.AdminService;
+import com.winworld.coursestools.service.AdminTradingViewRetryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +39,7 @@ public class AdminController {
     private final AdminService adminService;
     private final AdminInvoiceService adminInvoiceService;
     private final AdminOrderService adminOrderService;
+    private final AdminTradingViewRetryService adminTradingViewRetryService;
 
     @GetMapping("/statistics")
     @PreAuthorize("hasRole('ADMIN') or hasRole('PARTNER')")
@@ -87,5 +93,32 @@ public class AdminController {
             @ParameterObject Pageable pageable
     ) {
         return adminOrderService.getOrders(filter, pageable);
+    }
+
+    @GetMapping("/tv-retry/jobs")
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageDto<TradingViewRetryJobReadDto> listTvRetryJobs(
+            @ParameterObject TradingViewRetryJobFilterDto filter,
+            @ParameterObject Pageable pageable
+    ) {
+        return adminTradingViewRetryService.list(filter, pageable);
+    }
+
+    @GetMapping("/tv-retry/jobs/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public TradingViewRetryJobReadDto getTvRetryJob(@PathVariable Integer id) {
+        return adminTradingViewRetryService.get(id);
+    }
+
+    @PostMapping("/tv-retry/jobs/{id}/retry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public TradingViewRetryJobReadDto forceRetryTvJob(@PathVariable Integer id) {
+        return adminTradingViewRetryService.forceRetry(id);
+    }
+
+    @DeleteMapping("/tv-retry/jobs/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void dropTvRetryJob(@PathVariable Integer id) {
+        adminTradingViewRetryService.drop(id);
     }
 }

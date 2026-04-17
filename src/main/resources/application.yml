@@ -109,3 +109,9 @@ tokens:
     lifetime: 3m
 
 subscription.ct-pro.trial.days: 7
+
+tradingview:
+  retry:
+    max-attempts: 10
+    backoff-seconds: 60,300,900,3600,21600,86400,86400,86400,86400,86400
+    batch-size: 20

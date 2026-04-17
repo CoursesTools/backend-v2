@@ -2,16 +2,12 @@ package com.winworld.coursestools.service.external;
 
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
 import com.winworld.coursestools.dto.external.ChangeTradingViewNameDto;
-import com.winworld.coursestools.exception.exceptions.ExternalServiceException;
+import com.winworld.coursestools.enums.TradingViewRetryJobType;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 @Slf4j
@@ -19,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class ActivatingSubscriptionService {
     private final RestTemplate restTemplate;
+    private final TradingViewRetryService retryService;
 
     @Value("${urls.activating-bot}")
     private String activatingBotUrl;
@@ -26,63 +23,34 @@ public class ActivatingSubscriptionService {
     @Value("${urls.change-tradingview-bot}")
     private String changeTradingViewBotUrl;
 
-    @Retry(name = "default", fallbackMethod = "handleFallback")
-    public void activateTradingViewAccess(ActivateTradingViewAccessDto dto) {
-        //TODO сделать HMAC
+    @Retry(name = "default", fallbackMethod = "handleActivationFallback")
+    public void activateTradingViewAccess(Integer userId, ActivateTradingViewAccessDto dto) {
         restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
-        log.info("Subscription activated for name: {}, expiration: {}", dto.getTradingViewName(), dto.getExpiration());
+        log.info("TV activation succeeded: userId={}, name={}, tier={}, expiration={}",
+                userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration());
     }
 
-    @Retry(name = "default", fallbackMethod = "handleFallback")
-    public void changeTradingViewUsername(ChangeTradingViewNameDto dto) {
-        //TODO сделать HMAC
+    @Retry(name = "default", fallbackMethod = "handleRenameFallback")
+    public void changeTradingViewUsername(Integer userId, ChangeTradingViewNameDto dto) {
         restTemplate.postForEntity(changeTradingViewBotUrl, dto, Void.class);
-        log.info("Trading view name changed from {} to {}, expiration: {}", dto.getOldName(), dto.getNewName(), dto.getExpiration());
+        log.info("TV rename succeeded: userId={}, {} -> {}, tier={}, expiration={}",
+                userId, dto.getOldName(), dto.getNewName(), dto.getTier(), dto.getExpiration());
     }
 
-    public void handleFallback(ActivateTradingViewAccessDto dto, Throwable throwable) {
-        //TODO сделать алерт
-        log.error("Failed to activate subscription for name: {}, expiration: {}",
-                  dto.getTradingViewName(), dto.getExpiration(), throwable);
-        throw new ExternalServiceException(buildActivationError(dto.getTradingViewName(), throwable));
+    // Resilience4j fallback: invoked after retries are exhausted. DOES NOT throw —
+    // enqueues a durable retry so the caller's @Transactional can still commit the
+    // subscription state. The TradingViewRetryScheduler drains the queue.
+    @SuppressWarnings("unused")
+    public void handleActivationFallback(Integer userId, ActivateTradingViewAccessDto dto, Throwable throwable) {
+        log.error("TV activation failed after retries — enqueuing durable retry (userId={}, name={}, exp={})",
+                userId, dto.getTradingViewName(), dto.getExpiration(), throwable);
+        retryService.enqueue(userId, TradingViewRetryJobType.ACTIVATE, dto, throwable);
     }
 
-    public void handleFallback(ChangeTradingViewNameDto dto, Throwable throwable) {
-        //TODO сделать алерт
-        log.error("Failed to change trading view name from {} to {}, expiration: {}",
-                dto.getOldName(), dto.getNewName(), dto.getExpiration(), throwable);
-        throw new ExternalServiceException(buildNameChangeError(dto.getOldName(), dto.getNewName(), throwable));
-    }
-
-    private String buildActivationError(String tradingViewName, Throwable cause) {
-        if (cause instanceof ResourceAccessException) {
-            return "TradingView bot is unreachable — cannot activate access for '" + tradingViewName + "'. Check that the bot is running.";
-        }
-        if (cause instanceof HttpClientErrorException httpEx) {
-            if (httpEx.getStatusCode() == HttpStatus.NOT_FOUND) {
-                return "TradingView username '" + tradingViewName + "' was not found by the bot. Verify the username is correct.";
-            }
-            return "TradingView bot rejected activation for '" + tradingViewName + "': " + httpEx.getStatusCode() + " — " + httpEx.getResponseBodyAsString();
-        }
-        if (cause instanceof HttpServerErrorException httpEx) {
-            return "TradingView bot returned a server error while activating '" + tradingViewName + "': " + httpEx.getStatusCode();
-        }
-        return "Failed to activate TradingView access for '" + tradingViewName + "': " + cause.getMessage();
-    }
-
-    private String buildNameChangeError(String oldName, String newName, Throwable cause) {
-        if (cause instanceof ResourceAccessException) {
-            return "TradingView bot is unreachable — cannot rename '" + oldName + "' → '" + newName + "'. Check that the bot is running.";
-        }
-        if (cause instanceof HttpClientErrorException httpEx) {
-            if (httpEx.getStatusCode() == HttpStatus.NOT_FOUND) {
-                return "TradingView username '" + oldName + "' was not found by the bot. Verify the username is correct.";
-            }
-            return "TradingView bot rejected name change '" + oldName + "' → '" + newName + "': " + httpEx.getStatusCode() + " — " + httpEx.getResponseBodyAsString();
-        }
-        if (cause instanceof HttpServerErrorException httpEx) {
-            return "TradingView bot returned a server error for name change '" + oldName + "' → '" + newName + "': " + httpEx.getStatusCode();
-        }
-        return "Failed to change TradingView name '" + oldName + "' → '" + newName + "': " + cause.getMessage();
+    @SuppressWarnings("unused")
+    public void handleRenameFallback(Integer userId, ChangeTradingViewNameDto dto, Throwable throwable) {
+        log.error("TV rename failed after retries — enqueuing durable retry (userId={}, {} -> {}, exp={})",
+                userId, dto.getOldName(), dto.getNewName(), dto.getExpiration(), throwable);
+        retryService.enqueue(userId, TradingViewRetryJobType.RENAME, dto, throwable);
     }
 }

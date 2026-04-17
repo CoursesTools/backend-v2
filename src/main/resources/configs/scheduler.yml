@@ -3,3 +3,5 @@ scheduler:
     expired-subscriptions: "0 0 * * * *"
     trial-expired-subscriptions: "0 0 * * * *"
     grace-period-expired-subscriptions: "0 0 * * * *"
+  tv-retry:
+    poll: "0 * * * * *"
