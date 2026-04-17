@@ -82,7 +82,7 @@ public class UserSocialService {
                     userSubscription.getPlan().getTier(),
                     userSubscription.getExpiredAt()
             );
-            activatingSubscriptionService.changeTradingViewUsername(changeNameDto);
+            activatingSubscriptionService.changeTradingViewUsername(user.getId(), changeNameDto);
         }
         var savedUser = userDataService.save(user);
         return userMapper.toDto(savedUser);

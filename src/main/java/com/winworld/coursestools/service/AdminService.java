@@ -90,8 +90,18 @@ public class AdminService {
         var subscription = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         var userSubscriptionOptional = userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), subscription.getId());
         boolean lifetime = Boolean.TRUE.equals(dto.getIsLifetime());
+        boolean trial = Boolean.TRUE.equals(dto.getIsTrial());
         if (!lifetime && dto.getExpiredAt() == null) {
             throw new DataValidationException("expiredAt is required when isLifetime is not set");
+        }
+        // Trials always run on MONTH; lifetime routes through its own path and ignores plan.
+        // For paid (non-lifetime, non-trial) grants, require MONTH or YEAR so the row stores
+        // the correct plan_id/price — otherwise admin grants land on the default MONTH plan.
+        Plan plan = trial ? Plan.MONTH : dto.getPlan();
+        if (!lifetime && !trial) {
+            if (plan == null || (plan != Plan.MONTH && plan != Plan.YEAR)) {
+                throw new DataValidationException("plan must be MONTH or YEAR for paid admin grants");
+            }
         }
         if (lifetime) {
             if (userSubscriptionOptional.isPresent()) {
@@ -103,12 +113,12 @@ public class AdminService {
             if (userSubscriptionOptional.isPresent()) {
                 var userSubscription = userSubscriptionOptional.get();
                 if (userSubscription.getStatus() == SubscriptionStatus.GRACE_PERIOD) {
-                    subscriptionService.updateGracePeriodSubscription(userSubscription, user, dto.getExpiredAt());
+                    subscriptionService.updateGracePeriodSubscription(userSubscription, user, dto.getExpiredAt(), dto.getTier(), plan);
                 } else {
-                    subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt());
+                    subscriptionService.extendExistingSubscription(userSubscription, user, dto.getExpiredAt(), dto.getTier(), plan);
                 }
             } else {
-                subscriptionService.createNewSubscription(user, Boolean.TRUE.equals(dto.getIsTrial()), dto.getExpiredAt(), dto.getTier());
+                subscriptionService.createNewSubscription(user, trial, dto.getExpiredAt(), dto.getTier(), plan);
             }
         }
     }

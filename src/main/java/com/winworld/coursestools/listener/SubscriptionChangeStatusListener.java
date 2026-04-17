@@ -48,7 +48,7 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 event.getEmail(), userSubscription.getPlan().getTier(),
                 event.getTradingViewUsername(), userSubscription.getExpiredAt());
-        activatingSubscriptionService.activateTradingViewAccess(dto);
+        activatingSubscriptionService.activateTradingViewAccess(userSubscription.getUser().getId(), dto);
         userSubscription.setStatus(SubscriptionStatus.GRANTED);
         userSubscriptionService.save(userSubscription);
     }
