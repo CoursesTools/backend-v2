@@ -90,14 +90,67 @@ public class TradingViewRetryService {
     }
 
     /**
-     * Keep a pending ACTIVATE job's payload fresh when a user changes their
-     * TradingView nickname. Called inside the caller's transaction — if the
-     * rename rolls back, this patch rolls back with it.
+     * Enqueue a job directly as DEAD. Used for permanent errors (e.g., TV bot
+     * says the nickname doesn't exist) where automatic retry would just burn
+     * backoff attempts. Surfaces to the admin TV-retry page immediately so an
+     * operator can correct the user's TV name and force-retry. Deduplicated
+     * per (user, type, DEAD) — a fresher reason overwrites the payload so we
+     * don't pile up duplicate DEAD rows from webhook replays.
+     */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void enqueueDead(Integer userId, TradingViewRetryJobType type, Object dto, String reason) {
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize DEAD-enqueue payload for userId={} type={}", userId, type, e);
+            return;
+        }
+        String errorMsg = truncate(reason);
+        LocalDateTime now = LocalDateTime.now();
+
+        var existing = repository.findByUserIdAndTypeAndStatus(userId, type, TradingViewRetryJobStatus.DEAD);
+        if (existing.isPresent()) {
+            var job = existing.get();
+            log.warn("TV retry DEAD-enqueue overwriting existing DEAD job: jobId={} userId={} type={} reason={}",
+                    job.getId(), userId, type, errorMsg);
+            job.setPayload(payload);
+            job.setLastError(errorMsg);
+            repository.save(job);
+            return;
+        }
+
+        var job = new TradingViewRetryJob();
+        job.setUser(userDataService.getUserById(userId));
+        job.setType(type);
+        job.setStatus(TradingViewRetryJobStatus.DEAD);
+        job.setPayload(payload);
+        job.setAttempts(0);
+        job.setForceRetryCount(0);
+        job.setNextAttemptAt(now);
+        job.setFirstEnqueuedAt(now);
+        job.setLastError(errorMsg);
+        repository.save(job);
+        log.error("TV retry DEAD-enqueued: userId={} type={} reason={} (admin action required)",
+                userId, type, errorMsg);
+    }
+
+    /**
+     * Keep any ACTIVATE retry job's payload fresh when a user changes their
+     * TradingView nickname. Patches both PENDING rows (next auto-retry uses new
+     * handle) and DEAD rows (so force-retry after the rename targets the new
+     * handle too). Called inside the caller's transaction — if the rename
+     * rolls back, this patch rolls back with it.
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public void onUserTradingViewNameChanged(Integer userId, String newTradingViewName) {
+        patchActivatePayload(userId, TradingViewRetryJobStatus.PENDING, newTradingViewName);
+        patchActivatePayload(userId, TradingViewRetryJobStatus.DEAD, newTradingViewName);
+    }
+
+    private void patchActivatePayload(Integer userId, TradingViewRetryJobStatus status, String newTradingViewName) {
         var existing = repository.findByUserIdAndTypeAndStatus(
-                userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.PENDING);
+                userId, TradingViewRetryJobType.ACTIVATE, status);
         if (existing.isEmpty()) return;
         var job = existing.get();
         try {
@@ -107,10 +160,10 @@ public class TradingViewRetryService {
             dto.setTradingViewName(newTradingViewName);
             job.setPayload(objectMapper.writeValueAsString(dto));
             repository.save(job);
-            log.info("Patched PENDING ACTIVATE retry for TV rename: jobId={} userId={} {} -> {}",
-                    job.getId(), userId, prior, newTradingViewName);
+            log.info("Patched {} ACTIVATE retry for TV rename: jobId={} userId={} {} -> {}",
+                    status, job.getId(), userId, prior, newTradingViewName);
         } catch (JsonProcessingException e) {
-            log.error("Failed to patch ACTIVATE retry payload for userId={}", userId, e);
+            log.error("Failed to patch {} ACTIVATE retry payload for userId={}", status, userId, e);
         }
     }
 
