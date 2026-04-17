@@ -82,10 +82,36 @@ public class TradingViewRetryService {
         job.setStatus(TradingViewRetryJobStatus.PENDING);
         job.setPayload(payload);
         job.setAttempts(0);
+        job.setForceRetryCount(0);
         job.setNextAttemptAt(now);
         job.setFirstEnqueuedAt(now);
         job.setLastError(errorMsg);
         repository.save(job);
+    }
+
+    /**
+     * Keep a pending ACTIVATE job's payload fresh when a user changes their
+     * TradingView nickname. Called inside the caller's transaction — if the
+     * rename rolls back, this patch rolls back with it.
+     */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void onUserTradingViewNameChanged(Integer userId, String newTradingViewName) {
+        var existing = repository.findByUserIdAndTypeAndStatus(
+                userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.PENDING);
+        if (existing.isEmpty()) return;
+        var job = existing.get();
+        try {
+            var dto = objectMapper.readValue(job.getPayload(), ActivateTradingViewAccessDto.class);
+            if (newTradingViewName.equals(dto.getTradingViewName())) return;
+            String prior = dto.getTradingViewName();
+            dto.setTradingViewName(newTradingViewName);
+            job.setPayload(objectMapper.writeValueAsString(dto));
+            repository.save(job);
+            log.info("Patched PENDING ACTIVATE retry for TV rename: jobId={} userId={} {} -> {}",
+                    job.getId(), userId, prior, newTradingViewName);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to patch ACTIVATE retry payload for userId={}", userId, e);
+        }
     }
 
     /**
@@ -136,21 +162,52 @@ public class TradingViewRetryService {
         }
     }
 
+    /**
+     * Admin "Retry now" handler. Atomic UPDATE (no read-modify-write race with
+     * the scheduler). Resets the automatic-retry cycle (attempts=0), records the
+     * manual action via force_retry_count++, schedules immediate pickup. If the
+     * clicked row is DEAD but a fresher PENDING exists for same (user, type),
+     * drop the stale DEAD and redirect the click to the PENDING — prevents
+     * unique-index collision on (user_id, type) WHERE status='PENDING'.
+     */
     @Transactional
     public TradingViewRetryJob forceRetry(Integer id) {
         var job = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Retry job " + id + " not found"));
-        job.setStatus(TradingViewRetryJobStatus.PENDING);
-        job.setNextAttemptAt(LocalDateTime.now());
-        job.setLastError(null);
-        return repository.save(job);
+        Integer targetId = id;
+        if (job.getStatus() == TradingViewRetryJobStatus.DEAD) {
+            var canonical = repository.findByUserIdAndTypeAndStatus(
+                    job.getUser().getId(),
+                    job.getType(),
+                    TradingViewRetryJobStatus.PENDING);
+            if (canonical.isPresent() && !canonical.get().getId().equals(id)) {
+                log.info("forceRetry on DEAD jobId={} superseded by PENDING jobId={}; dropping DEAD, retrying PENDING",
+                        id, canonical.get().getId());
+                repository.delete(job);
+                targetId = canonical.get().getId();
+            }
+        }
+        final Integer effectiveId = targetId;
+        int affected = repository.forceRetry(
+                effectiveId, TradingViewRetryJobStatus.PENDING, LocalDateTime.now());
+        if (affected == 0) {
+            throw new EntityNotFoundException(
+                    "Retry job " + effectiveId + " no longer exists (already processed)");
+        }
+        return repository.findById(effectiveId).orElseThrow(
+                () -> new EntityNotFoundException("Retry job " + effectiveId + " vanished after force-retry"));
     }
 
+    /**
+     * Idempotent drop. Single atomic DELETE — no stale-entity exception if the
+     * scheduler already deleted this row on a successful retry.
+     */
     @Transactional
     public void drop(Integer id) {
-        var job = repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Retry job " + id + " not found"));
-        repository.delete(job);
+        int affected = repository.deleteByIdReturning(id);
+        if (affected == 0) {
+            throw new EntityNotFoundException("Retry job " + id + " not found");
+        }
     }
 
     private static String truncate(String s) {

@@ -20,6 +20,7 @@ import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.TokenService;
 import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
 import com.winworld.coursestools.service.external.OAuthDiscordService;
+import com.winworld.coursestools.service.external.TradingViewRetryService;
 import com.winworld.coursestools.validation.validator.UserValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,7 @@ public class UserSocialService {
     private final OAuthDiscordService oAuthDiscordService;
     private final AlertService alertService;
     private final ActivatingSubscriptionService activatingSubscriptionService;
+    private final TradingViewRetryService tradingViewRetryService;
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionService userSubscriptionService;
     private final TrialActivationRepository trialActivationRepository;
@@ -64,7 +66,15 @@ public class UserSocialService {
     public UserReadDto bindUserTradingView(UpdateUserTradingViewDto dto, int userId) {
         var user = userDataService.getUserById(userId);
         userValidator.validateUserTradingViewUpdate(dto.getTradingViewName(), user);
-        user.getSocial().setTradingViewName(dto.getTradingViewName().toLowerCase());
+        // Capture the current name BEFORE mutating so the TV bot rename call
+        // gets the correct old→new pair. Previously both old and new were read
+        // after the setter, which sent old==new to the bot (a no-op/error).
+        String oldTradingViewName = user.getSocial().getTradingViewName();
+        String newTradingViewName = dto.getTradingViewName().toLowerCase();
+        user.getSocial().setTradingViewName(newTradingViewName);
+        // Keep any in-flight ACTIVATE retry pointed at the user's new handle.
+        // Same tx: if the rename fails below (non-retryable), this patch rolls back too.
+        tradingViewRetryService.onUserTradingViewNameChanged(user.getId(), newTradingViewName);
 
         SubscriptionType subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
         var userSubscriptionOptional = userSubscriptionService.getCurrentUserSubBySubTypeId(
@@ -73,16 +83,19 @@ public class UserSocialService {
         if (userSubscriptionOptional.isPresent()) {
             var userSubscription = userSubscriptionOptional.get();
             if (userSubscription.getIsTrial()
-                    && trialActivationRepository.existsByTradingviewUsername(dto.getTradingViewName())) {
+                    && trialActivationRepository.existsByTradingviewUsername(newTradingViewName)) {
                 throw new ConflictException("TradingView username already used for trial");
             }
-            var changeNameDto = new ChangeTradingViewNameDto(
-                    user.getSocial().getTradingViewName(),
-                    dto.getTradingViewName().toLowerCase(),
-                    userSubscription.getPlan().getTier(),
-                    userSubscription.getExpiredAt()
-            );
-            activatingSubscriptionService.changeTradingViewUsername(user.getId(), changeNameDto);
+            // Skip the bot rename if nothing actually changed (case-only normalization).
+            if (!newTradingViewName.equalsIgnoreCase(oldTradingViewName)) {
+                var changeNameDto = new ChangeTradingViewNameDto(
+                        oldTradingViewName,
+                        newTradingViewName,
+                        userSubscription.getPlan().getTier(),
+                        userSubscription.getExpiredAt()
+                );
+                activatingSubscriptionService.changeTradingViewUsername(user.getId(), changeNameDto);
+            }
         }
         var savedUser = userDataService.save(user);
         return userMapper.toDto(savedUser);
