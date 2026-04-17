@@ -4,11 +4,13 @@ import com.winworld.coursestools.dto.PageDto;
 import com.winworld.coursestools.dto.admin.AdminOrderFilterDto;
 import com.winworld.coursestools.dto.admin.AdminOrderReadDto;
 import com.winworld.coursestools.dto.admin.AdminUserReadDto;
-import com.winworld.coursestools.dto.admin.ChangeUserAccessDto;
+import com.winworld.coursestools.dto.admin.ClassicGrantDto;
 import com.winworld.coursestools.dto.admin.CreateCustomInvoiceDto;
+import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
 import com.winworld.coursestools.dto.admin.TradingViewRetryJobFilterDto;
 import com.winworld.coursestools.dto.admin.TradingViewRetryJobReadDto;
+import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.service.AdminInvoiceService;
@@ -64,10 +66,16 @@ public class AdminController {
         return adminService.getPurchasedPlansByTier(start, end);
     }
 
-    @PostMapping("/access")
+    @PostMapping("/access/classic")
     @PreAuthorize("hasRole('ADMIN')")
-    public void changeUserAccess(@RequestBody @Valid ChangeUserAccessDto dto) {
-        adminService.changeUserAccess(dto);
+    public UserSubscriptionReadDto grantClassicAccess(@RequestBody @Valid ClassicGrantDto dto) {
+        return adminService.grantClassicAccess(dto);
+    }
+
+    @PostMapping("/access/custom")
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserSubscriptionReadDto updateCustomAccess(@RequestBody @Valid CustomAccessUpdateDto dto) {
+        return adminService.updateCustomAccess(dto);
     }
 
     @GetMapping("/users")

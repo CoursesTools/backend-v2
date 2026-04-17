@@ -1,8 +1,6 @@
 package com.winworld.coursestools.dto.admin;
 
-import com.winworld.coursestools.enums.Plan;
-import com.winworld.coursestools.enums.SubscriptionTier;
-import jakarta.annotation.Nullable;
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -10,16 +8,17 @@ import java.time.LocalDate;
 
 import static com.winworld.coursestools.constants.ValidationMessages.NOT_NULL_MESSAGE;
 
+/**
+ * Admin "custom" access update — pure expiredAt bump for a user who already has
+ * an active (non-terminated) subscription. Tier and plan are inherited from the
+ * existing subscription row.
+ */
 @Data
-public class ChangeUserAccessDto {
-    private Boolean isLifetime;
-    private Boolean isTrial;
+public class CustomAccessUpdateDto {
     @NotNull(message = NOT_NULL_MESSAGE)
     private String tradingViewName;
-    @Nullable
-    private LocalDate expiredAt;
+
     @NotNull(message = NOT_NULL_MESSAGE)
-    private SubscriptionTier tier;
-    @Nullable
-    private Plan plan;
+    @Future
+    private LocalDate expiredAt;
 }
