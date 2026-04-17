@@ -58,4 +58,7 @@ public class TradingViewRetryJob extends BaseEntity {
 
     @Column(name = "first_enqueued_at", nullable = false)
     private LocalDateTime firstEnqueuedAt;
+
+    @Column(name = "force_retry_count", nullable = false)
+    private Integer forceRetryCount;
 }

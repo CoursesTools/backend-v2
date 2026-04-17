@@ -27,8 +27,10 @@ public class TradingViewRetryJobReadDto {
     private TradingViewRetryJobType type;
     @Schema(requiredMode = REQUIRED)
     private TradingViewRetryJobStatus status;
-    @Schema(requiredMode = REQUIRED)
+    @Schema(requiredMode = REQUIRED, description = "Consecutive automatic-retry failures in the current cycle (resets on force-retry)")
     private Integer attempts;
+    @Schema(requiredMode = REQUIRED, description = "Number of times an admin manually forced this job to retry")
+    private Integer forceRetryCount;
     @Schema(requiredMode = REQUIRED)
     private LocalDateTime nextAttemptAt;
     @Schema(requiredMode = REQUIRED)
