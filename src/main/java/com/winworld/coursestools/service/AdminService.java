@@ -91,7 +91,8 @@ public class AdminService {
         UserSubscription sub = switch (dto.getPlan()) {
             case LIFETIME -> subscriptionService.adminGrantLifetime(user, dto.getTier());
             case TRIAL -> subscriptionService.adminGrantTrial(user, dto.getTier(), dto.getTrialExpiresAt());
-            case MONTH, YEAR -> subscriptionService.adminGrantPaid(user, dto.getTier(), dto.getPlan());
+            case MONTH, YEAR -> subscriptionService.adminGrantPaid(
+                    user, dto.getTier(), dto.getPlan(), dto.isKeepExpirationDate());
         };
         return userMapper.toDto(sub);
     }
