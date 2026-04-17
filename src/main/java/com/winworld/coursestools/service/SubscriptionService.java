@@ -326,13 +326,22 @@ public class SubscriptionService {
     // --- Admin classic/custom grant surface ----------------------------------
 
     /**
-     * Classic MONTH/YEAR admin grant: routes through the canonical payment-update
-     * path via a transient (never-persisted) Order. Reuses every tested branch —
-     * create / extend / grace-restore, Stripe-cancel-on-switch, grace-day rules,
-     * trial-handoff. No user_transactions row is written (this is not a payment).
+     * Classic MONTH/YEAR admin grant.
+     * <p>
+     * Default ({@code keepExpirationDate=false}): routes through the canonical
+     * payment-update path via a transient (never-persisted) Order. Reuses every
+     * tested branch — create / extend / grace-restore, Stripe-cancel-on-switch,
+     * grace-day rules, trial-handoff.
+     * <p>
+     * {@code keepExpirationDate=true}: tier/plan swap on an existing subscription
+     * without touching its {@code expiredAt}. Requires an existing non-terminated
+     * sub (400 otherwise). Cancels Stripe if the sub was on STRIPE. Publishes
+     * EXTENDED so the listener re-activates TV with the new tier.
+     * <p>
+     * No user_transactions row is written either way (this is not a payment).
      */
     @Transactional
-    public UserSubscription adminGrantPaid(User user, SubscriptionTier tier, Plan planName) {
+    public UserSubscription adminGrantPaid(User user, SubscriptionTier tier, Plan planName, boolean keepExpirationDate) {
         if (planName != Plan.MONTH && planName != Plan.YEAR) {
             throw new DataValidationException("adminGrantPaid only accepts MONTH or YEAR; got " + planName);
         }
@@ -345,6 +354,10 @@ public class SubscriptionService {
         UserSubscription currentSub = userSubscriptionService
                 .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
                 .orElse(null);
+
+        if (keepExpirationDate) {
+            return adminSwapTierKeepExpiry(user, currentSub, plan);
+        }
 
         // Transient Order: value carrier only — never saved, not referenced after this call.
         Order syntheticOrder = Order.builder()
@@ -364,6 +377,27 @@ public class SubscriptionService {
         return userSubscriptionService
                 .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Subscription missing after classic grant"));
+    }
+
+    private UserSubscription adminSwapTierKeepExpiry(User user, UserSubscription currentSub, SubscriptionPlan plan) {
+        if (currentSub == null) {
+            throw new DataValidationException(
+                    "User '" + user.getSocial().getTradingViewName()
+                            + "' has no active subscription whose expiration could be kept");
+        }
+        if (STRIPE.equals(currentSub.getPaymentMethod())) {
+            stripePaymentService.cancelSubscription(currentSub);
+        }
+        currentSub.setPlan(plan);
+        currentSub.setPrice(plan.getPrice());
+        currentSub.setPaymentMethod(PaymentMethod.MANUAL);
+        currentSub.setPaymentProviderData(null);
+        currentSub.setIsTrial(false);
+        currentSub.setStatus(PENDING);
+        // expiredAt deliberately untouched.
+        UserSubscription saved = userSubscriptionService.save(currentSub);
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+        return saved;
     }
 
     @Transactional

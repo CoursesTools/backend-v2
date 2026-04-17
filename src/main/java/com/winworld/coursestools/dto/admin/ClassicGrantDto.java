@@ -30,9 +30,23 @@ public class ClassicGrantDto {
     @Future
     private LocalDate trialExpiresAt;
 
+    /**
+     * When true, the user's existing subscription is mutated to the new tier/plan
+     * but its expiredAt is preserved. Use this for tier swaps (e.g. ESSENTIALS →
+     * PRO) without resetting the user's billing timer. Requires an existing
+     * non-terminated subscription. Only valid when plan is MONTH or YEAR.
+     */
+    private boolean keepExpirationDate;
+
     @AssertTrue(message = "trialExpiresAt is required (and must be in the future) when plan=TRIAL")
     public boolean isTrialExpiryConsistent() {
         if (plan != Plan.TRIAL) return true;
         return trialExpiresAt != null;
+    }
+
+    @AssertTrue(message = "keepExpirationDate is only valid when plan is MONTH or YEAR")
+    public boolean isKeepExpirationConsistent() {
+        if (!keepExpirationDate) return true;
+        return plan == Plan.MONTH || plan == Plan.YEAR;
     }
 }
