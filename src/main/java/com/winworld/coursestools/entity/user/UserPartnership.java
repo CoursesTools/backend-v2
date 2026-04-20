@@ -14,6 +14,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 import static jakarta.persistence.FetchType.LAZY;
 
 @Getter
@@ -34,6 +36,12 @@ public class UserPartnership extends Auditable {
 
     @Column(name = "level_rank", nullable = false)
     private Integer level;
+
+    @Column(name = "custom_cashback1")
+    private BigDecimal customCashback1;
+
+    @Column(name = "custom_cashback2")
+    private BigDecimal customCashback2;
 
     @OneToOne(fetch = LAZY)
     @MapsId

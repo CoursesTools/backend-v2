@@ -8,6 +8,7 @@ import com.winworld.coursestools.dto.admin.ClassicGrantDto;
 import com.winworld.coursestools.dto.admin.CreateCustomInvoiceDto;
 import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
+import com.winworld.coursestools.dto.admin.UpdatePartnershipCashbackDto;
 import com.winworld.coursestools.dto.admin.TradingViewRetryJobFilterDto;
 import com.winworld.coursestools.dto.admin.TradingViewRetryJobReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,6 +78,12 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public UserSubscriptionReadDto updateCustomAccess(@RequestBody @Valid CustomAccessUpdateDto dto) {
         return adminService.updateCustomAccess(dto);
+    }
+
+    @PatchMapping("/users/partnership/cashback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AdminUserReadDto updatePartnershipCashback(@RequestBody @Valid UpdatePartnershipCashbackDto dto) {
+        return adminService.updatePartnershipCashback(dto);
     }
 
     @GetMapping("/users")

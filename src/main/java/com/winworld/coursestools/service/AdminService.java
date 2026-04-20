@@ -4,6 +4,7 @@ import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ClassicGrantDto;
 import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
 import com.winworld.coursestools.dto.admin.StatisticsAggregation;
+import com.winworld.coursestools.dto.admin.UpdatePartnershipCashbackDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
 import com.winworld.coursestools.dto.order.TierPlanOrderCount;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
@@ -107,6 +108,14 @@ public class AdminService {
 
     public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId) {
         User user = userDataService.getUserInfo(tradingViewName, email, userId);
+        return userMapper.toAdminDto(user);
+    }
+
+    @Transactional
+    public AdminUserReadDto updatePartnershipCashback(UpdatePartnershipCashbackDto dto) {
+        User user = userDataService.getUserById(dto.getUserId());
+        user.getPartnership().setCustomCashback1(dto.getCustomCashback1());
+        user.getPartnership().setCustomCashback2(dto.getCustomCashback2());
         return userMapper.toAdminDto(user);
     }
 
