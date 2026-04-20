@@ -27,6 +27,8 @@ public class AdminUserReadDto {
     private String countryCode;
     @Schema(requiredMode = REQUIRED)
     private Integer partnershipLevel;
+    private BigDecimal customCashback1;
+    private BigDecimal customCashback2;
     @Schema(requiredMode = REQUIRED)
     private BigDecimal balance;
     private Integer referrerId;

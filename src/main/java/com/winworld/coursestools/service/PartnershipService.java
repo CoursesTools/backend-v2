@@ -7,6 +7,7 @@ import com.winworld.coursestools.dto.partnership.UserPartnerReadDto;
 import com.winworld.coursestools.dto.partnership.UserPartnershipReadDto;
 import com.winworld.coursestools.entity.Referral;
 import com.winworld.coursestools.entity.user.User;
+import com.winworld.coursestools.entity.user.UserPartnership;
 import com.winworld.coursestools.entity.user.UserTransaction;
 import com.winworld.coursestools.service.user.UserDataService;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +58,8 @@ public class PartnershipService {
                 .levelEarnings(referralService.calculateLevelEarnings(userId))
                 .partnerCode(user.getPartnerCode().getCode())
                 .termsAccepted(user.getPartnership().getTermsAccepted())
+                .effectiveCashback1(resolveRate(user.getPartnership(), currentLevel, 1))
+                .effectiveCashback2(resolveRate(user.getPartnership(), currentLevel, 2))
                 .build();
     }
 
@@ -70,8 +73,9 @@ public class PartnershipService {
 
         for (int i = 1; i <= CASHBACKS_LEVELS_LIMIT; i++) {
             level = partnershipProps.getLevels().get(referrer.getPartnership().getLevel());
+            BigDecimal rate = resolveRate(referrer.getPartnership(), level, i);
             earn = amount
-                    .multiply(level.getCashback(i))
+                    .multiply(rate)
                     .divide(BigDecimal.valueOf(100), RoundingMode.HALF_UP);
             referrer.getFinance().addBalance(earn);
             referralService.addReferralEarning(referral.getId(), earn.intValue(), i, transaction.getId());
@@ -91,6 +95,11 @@ public class PartnershipService {
 
     public PartnershipProps.Level getCurrentLevel(int level) {
         return partnershipProps.getLevels().get(level);
+    }
+
+    private BigDecimal resolveRate(UserPartnership partnership, PartnershipProps.Level level, int cashbackLevel) {
+        BigDecimal custom = cashbackLevel == 1 ? partnership.getCustomCashback1() : partnership.getCustomCashback2();
+        return custom != null ? custom : level.getCashback(cashbackLevel);
     }
 
     public List<LevelReadDto> getPartnershipLevels() {

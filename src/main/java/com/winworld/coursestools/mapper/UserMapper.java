@@ -65,6 +65,8 @@ public interface UserMapper {
     @Mapping(target = "telegram", source = "social.telegramId")
     @Mapping(target = "referrerId", source = "referred.referrer.id")
     @Mapping(target = "partnershipLevel", source = "partnership.level")
+    @Mapping(target = "customCashback1", source = "partnership.customCashback1")
+    @Mapping(target = "customCashback2", source = "partnership.customCashback2")
     @Mapping(target = "countryCode", source = "profile.countryCode")
     @Mapping(target = "balance", source = "finance.balance")
     @Mapping(target = "tradingViewName", source = "social.tradingViewName")
