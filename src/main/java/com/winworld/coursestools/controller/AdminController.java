@@ -91,9 +91,10 @@ public class AdminController {
     public AdminUserReadDto getUserInfo(
             @RequestParam(required = false) Integer userId,
             @RequestParam(required = false) String tradingViewName,
-            @RequestParam(required = false) String email
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String partnerCode
     ) {
-        return adminService.getUserInfo(tradingViewName, email, userId);
+        return adminService.getUserInfo(tradingViewName, email, userId, partnerCode);
     }
 
     @PostMapping("/invoices/create")
