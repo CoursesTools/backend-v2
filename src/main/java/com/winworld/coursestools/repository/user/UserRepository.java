@@ -29,4 +29,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query("SELECT u FROM User u JOIN u.social s WHERE LOWER(s.tradingViewName) = LOWER(:tradingViewName)")
     Optional<User> findUserWithDetailsByTradingViewName(String tradingViewName);
 
+    @EntityGraph(attributePaths = {"profile", "partnership", "social", "subscriptions", "referred", "finance"})
+    @Query("SELECT u FROM User u WHERE u.partnerCode.code = :partnerCode")
+    Optional<User> findUserWithDetailsByPartnerCode(String partnerCode);
+
 }

@@ -106,8 +106,8 @@ public class AdminService {
         );
     }
 
-    public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId) {
-        User user = userDataService.getUserInfo(tradingViewName, email, userId);
+    public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId, String partnerCode) {
+        User user = userDataService.getUserInfo(tradingViewName, email, userId, partnerCode);
         return userMapper.toAdminDto(user);
     }
 
