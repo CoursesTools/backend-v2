@@ -9,6 +9,7 @@ import com.winworld.coursestools.dto.user.UpdateUserTradingViewDto;
 import com.winworld.coursestools.dto.user.UserReadDto;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.UserSubscription;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
@@ -92,7 +93,8 @@ public class UserSocialService {
                         oldTradingViewName,
                         newTradingViewName,
                         userSubscription.getPlan().getTier(),
-                        userSubscription.getExpiredAt()
+                        userSubscription.getExpiredAt(),
+                        userSubscription.getPlan().getName() == Plan.LIFETIME
                 );
                 activatingSubscriptionService.changeTradingViewUsername(user.getId(), changeNameDto);
             }

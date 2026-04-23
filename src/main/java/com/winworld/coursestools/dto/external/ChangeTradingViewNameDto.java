@@ -22,4 +22,5 @@ public class ChangeTradingViewNameDto {
     private String newName;
     private SubscriptionTier tier;
     private LocalDateTime expiration;
+    private boolean isLifetime;
 }

@@ -1,6 +1,7 @@
 package com.winworld.coursestools.listener;
 
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
+import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionEventType;
 import com.winworld.coursestools.enums.SubscriptionStatus;
 import com.winworld.coursestools.enums.TradingViewRetryJobType;
@@ -57,7 +58,8 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         Integer userId = userSubscription.getUser().getId();
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 event.getEmail(), userSubscription.getPlan().getTier(),
-                event.getTradingViewUsername(), userSubscription.getExpiredAt());
+                event.getTradingViewUsername(), userSubscription.getExpiredAt(),
+                userSubscription.getPlan().getName() == Plan.LIFETIME);
         try {
             activatingSubscriptionService.activateTradingViewAccess(userId, dto);
         } catch (TradingViewUserNotFoundException e) {
