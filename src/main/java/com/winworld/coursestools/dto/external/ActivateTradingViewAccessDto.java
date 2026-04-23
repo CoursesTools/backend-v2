@@ -21,4 +21,5 @@ public class ActivateTradingViewAccessDto {
     @JsonProperty(value = "tv")
     private String tradingViewName;
     private LocalDateTime expiration;
+    private boolean isLifetime;
 }

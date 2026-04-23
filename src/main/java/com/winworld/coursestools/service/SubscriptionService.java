@@ -68,7 +68,7 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 public class SubscriptionService {
     public static final int PAYMENT_GRACE_DAYS = 2;
     public static final int GRACE_PERIOD_DAYS = 7;
-    private static final LocalDateTime LIFETIME_EXPIRY = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+    private static final LocalDateTime LIFETIME_EXPIRY = LocalDateTime.of(2100, 12, 31, 23, 59, 59);
 
     private final UserDataService userDataService;
     private final UserMapper userMapper;
@@ -297,7 +297,7 @@ public class SubscriptionService {
         user.addSubscription(newSubscription);
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), plan.getTier(),
-                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt());
+                user.getSocial().getTradingViewName(), newSubscription.getExpiredAt(), true);
         activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
@@ -318,7 +318,7 @@ public class SubscriptionService {
         subscription.setExpiredAt(LIFETIME_EXPIRY);
         ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
                 user.getEmail(), lifetimePlan.getTier(),
-                user.getSocial().getTradingViewName(), subscription.getExpiredAt());
+                user.getSocial().getTradingViewName(), subscription.getExpiredAt(), true);
         activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
@@ -528,7 +528,7 @@ public class SubscriptionService {
         activatingSubscriptionService.activateTradingViewAccess(
                 user.getId(),
                 new ActivateTradingViewAccessDto(user.getEmail(), userSubscription.getPlan().getTier(),
-                        dto.getUsername(), expiration)
+                        dto.getUsername(), expiration, userSubscription.getPlan().getName() == Plan.LIFETIME)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }
