@@ -265,6 +265,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 paymentData.put(CURRENT_PERIOD_END, subscription.getCurrentPeriodEnd());
             } catch (StripeException e) {
                 log.error("Failed to retrieve subscription details for subscription: {}", invoice.getSubscription(), e);
+                throw new PaymentProcessingException("Failed to retrieve Stripe subscription period end");
             }
         }
 

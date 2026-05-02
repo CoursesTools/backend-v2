@@ -241,6 +241,10 @@ public class SubscriptionService {
         var plan = order.getPlan();
         LocalDateTime expirationDate = calculateExpirationDate(getNow(), plan, paymentProviderData);
 
+        if (STRIPE.equals(subscription.getPaymentMethod()) && !STRIPE.equals(order.getPaymentMethod())) {
+            stripePaymentService.cancelSubscription(subscription);
+        }
+
         subscription.setStatus(PENDING);
         subscription.setPrice(order.getOriginalPrice());
         subscription.setPaymentMethod(order.getPaymentMethod());
@@ -255,15 +259,14 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         var plan = order.getPlan();
-        // For Stripe renewals, use CURRENT_PERIOD_END + grace (Stripe controls the billing boundary).
+        // For Stripe renewals, mirror CURRENT_PERIOD_END exactly; Stripe controls the billing boundary.
         // For non-Stripe renewals, extend from the current expiry by the plan duration only — do NOT
         // add PAYMENT_GRACE_DAYS here, because the existing expiredAt already includes grace days from
         // prior renewals and compounding them causes ~2 days of drift per renewal (~1 extra month per year).
         LocalDateTime expirationDate;
         if (paymentProviderData != null && paymentProviderData.containsKey(CURRENT_PERIOD_END)) {
             Long periodEnd = (Long) paymentProviderData.get(CURRENT_PERIOD_END);
-            expirationDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEnd), ZoneOffset.UTC)
-                    .plusDays(PAYMENT_GRACE_DAYS);
+            expirationDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEnd), ZoneOffset.UTC);
         } else {
             expirationDate = subscription.getExpiredAt().plusDays(plan.getDurationDays());
         }
@@ -488,6 +491,7 @@ public class SubscriptionService {
                 .orElseThrow(() -> new DataValidationException(
                         "User '" + user.getSocial().getTradingViewName()
                                 + "' doesn't have an active subscription to update"));
+        ensureNotStripeManaged(current);
 
         current.setExpiredAt(expiredAt.atStartOfDay());
         UserSubscription saved = userSubscriptionService.save(current);
@@ -511,7 +515,7 @@ public class SubscriptionService {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochSecond(periodEnd),
                     ZoneOffset.UTC
-            ).plusDays(PAYMENT_GRACE_DAYS);
+            );
         }
         return baseDate.plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
     }
@@ -523,6 +527,7 @@ public class SubscriptionService {
         UserSubscription userSubscription = userSubscriptionService.getCurrentUserSubBySubTypeId(
                 user.getId(), subscriptionType.getId()
         ).orElseThrow(() -> new EntityNotFoundException("Active subscription not found"));
+        ensureNotStripeManaged(userSubscription);
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
         activatingSubscriptionService.activateTradingViewAccess(
@@ -531,6 +536,14 @@ public class SubscriptionService {
                         dto.getUsername(), expiration, userSubscription.getPlan().getName() == Plan.LIFETIME)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
+    }
+
+    private void ensureNotStripeManaged(UserSubscription userSubscription) {
+        if (STRIPE.equals(userSubscription.getPaymentMethod())) {
+            throw new DataValidationException(
+                    "Stripe-backed subscription expiry is managed by Stripe and cannot be changed manually"
+            );
+        }
     }
 
     public List<PlanSubscriptionCount> getActiveUsersCountOnDateWithPlan(LocalDate date) {
