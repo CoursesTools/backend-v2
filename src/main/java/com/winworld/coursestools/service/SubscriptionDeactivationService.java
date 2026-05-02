@@ -6,7 +6,6 @@ import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
-import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,7 +23,6 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionDeactivationService {
-    private final StripePaymentService stripePaymentService;
     private final ApplicationEventPublisher eventPublisher;
     private final SubscriptionMapper subscriptionMapper;
     private final UserSubscriptionRepository userSubscriptionRepository;
@@ -38,9 +36,7 @@ public class SubscriptionDeactivationService {
         if (referred != null) {
             referred.setActive(false);
         }
-        if (!userSubscription.getIsTrial() && userSubscription.getPaymentMethod().equals(STRIPE)) {
-            stripePaymentService.cancelSubscription(userSubscription);
-        }
+        logSkippedStripeCancellation(userSubscription);
         log.info("User {} subscription expired", user.getId());
         eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
         //TODO Сделать напоминание о 3 днях, 7 и т.д.
@@ -59,9 +55,7 @@ public class SubscriptionDeactivationService {
         if (referred != null) {
             referred.setActive(false);
         }
-        if (!userSubscription.getIsTrial() && STRIPE.equals(userSubscription.getPaymentMethod())) {
-            stripePaymentService.cancelSubscription(userSubscription);
-        }
+        logSkippedStripeCancellation(userSubscription);
 
         userSubscription.setStatus(TERMINATED);
         log.warn(
@@ -71,6 +65,15 @@ public class SubscriptionDeactivationService {
                 previousStatus
         );
         eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, userSubscription));
+    }
+
+    private void logSkippedStripeCancellation(UserSubscription userSubscription) {
+        if (!userSubscription.getIsTrial() && STRIPE.equals(userSubscription.getPaymentMethod())) {
+            log.warn(
+                    "Subscription {} is Stripe-backed; local expiry reconciliation will not cancel Stripe subscription",
+                    userSubscription.getId()
+            );
+        }
     }
 
     private UserSubscription getUserSubscriptionForUpdate(int userSubscriptionId) {

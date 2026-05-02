@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -72,7 +73,35 @@ class SubscriptionDeactivationServiceTest {
 
         assertEquals(SubscriptionStatus.TERMINATED, userSubscription.getStatus());
         assertFalse(referral.isActive());
-        verify(stripePaymentService).cancelSubscription(userSubscription);
+        verify(stripePaymentService, never()).cancelSubscription(userSubscription);
+        verify(eventPublisher).publishEvent(event);
+    }
+
+    @Test
+    void deactivateSingleSubscription_movesStripeSubscriptionToGraceButDoesNotCancelStripe() {
+        User user = new User();
+        user.setId(202);
+
+        UserSubscription userSubscription = UserSubscription.builder()
+                .id(84)
+                .user(user)
+                .paymentMethod(PaymentMethod.STRIPE)
+                .status(SubscriptionStatus.GRANTED)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now().minusMinutes(1))
+                .paymentProviderData(new java.util.HashMap<>())
+                .build();
+
+        SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
+
+        when(userSubscriptionRepository.findByIdWithUserDetails(84)).thenReturn(Optional.of(userSubscription));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_START, userSubscription))
+                .thenReturn(event);
+
+        subscriptionDeactivationService.deactivateSingleSubscription(84);
+
+        assertEquals(SubscriptionStatus.GRACE_PERIOD, userSubscription.getStatus());
+        verify(stripePaymentService, never()).cancelSubscription(userSubscription);
         verify(eventPublisher).publishEvent(event);
     }
 }
