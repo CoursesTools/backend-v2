@@ -278,8 +278,11 @@ class SubscriptionServiceTest {
     @Test
     void syncStripeSubscriptionUpdated_updatesPeriodEndAndStripeMetadata() {
         long currentPeriodEnd = 1777698505L;
+        User user = new User();
+        user.setId(4);
         UserSubscription subscription = UserSubscription.builder()
                 .id(13)
+                .user(user)
                 .status(SubscriptionStatus.GRANTED)
                 .paymentMethod(PaymentMethod.STRIPE)
                 .isTrial(false)
@@ -287,7 +290,9 @@ class SubscriptionServiceTest {
                 .paymentProviderData(new HashMap<>(Map.of(StripePaymentService.SUBSCRIPTION_ID, "sub_sync")))
                 .build();
 
+        SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
         when(userSubscriptionRepository.findByStripeSubscriptionId("sub_sync")).thenReturn(Optional.of(subscription));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, subscription)).thenReturn(event);
 
         subscriptionService.syncStripeSubscriptionUpdated(StripeSubscriptionLifecycleDto.builder()
                 .subscriptionId("sub_sync")
@@ -302,6 +307,36 @@ class SubscriptionServiceTest {
         assertEquals("active", subscription.getPaymentProviderData().get(STRIPE_STATUS));
         assertEquals(false, subscription.getPaymentProviderData().get(CANCEL_AT_PERIOD_END));
         verify(userSubscriptionService).save(subscription);
+        verify(eventPublisher).publishEvent(event);
+    }
+
+    @Test
+    void syncStripeSubscriptionUpdated_doesNotRepublishTradingViewEventWhenPeriodEndUnchanged() {
+        long currentPeriodEnd = 1777698505L;
+        User user = new User();
+        user.setId(7);
+        UserSubscription subscription = UserSubscription.builder()
+                .id(16)
+                .user(user)
+                .status(SubscriptionStatus.GRANTED)
+                .paymentMethod(PaymentMethod.STRIPE)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.ofInstant(Instant.ofEpochSecond(currentPeriodEnd), ZoneOffset.UTC))
+                .paymentProviderData(new HashMap<>(Map.of(StripePaymentService.SUBSCRIPTION_ID, "sub_same")))
+                .build();
+
+        when(userSubscriptionRepository.findByStripeSubscriptionId("sub_same")).thenReturn(Optional.of(subscription));
+
+        subscriptionService.syncStripeSubscriptionUpdated(StripeSubscriptionLifecycleDto.builder()
+                .subscriptionId("sub_same")
+                .currentPeriodEnd(currentPeriodEnd)
+                .status("active")
+                .cancelAtPeriodEnd(true)
+                .build());
+
+        assertEquals(true, subscription.getPaymentProviderData().get(CANCEL_AT_PERIOD_END));
+        verify(userSubscriptionService).save(subscription);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

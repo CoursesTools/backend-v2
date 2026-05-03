@@ -223,8 +223,12 @@ public class SubscriptionService {
             return;
         }
 
+        LocalDateTime previousExpiredAt = subscription.getExpiredAt();
         syncStripeLifecycleMetadata(subscription, dto);
         userSubscriptionService.save(subscription);
+        if (dto.getCurrentPeriodEnd() != null && !subscription.getExpiredAt().equals(previousExpiredAt)) {
+            eventPublisher.publishEvent(subscriptionMapper.toEvent(subscription.getUser(), EXTENDED, subscription));
+        }
         log.info("Stripe subscription {} synced to local subscription {}", dto.getSubscriptionId(), subscription.getId());
     }
 
