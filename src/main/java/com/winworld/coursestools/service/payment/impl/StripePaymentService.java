@@ -24,6 +24,7 @@ import com.winworld.coursestools.config.props.StripeProperties;
 import com.winworld.coursestools.dto.payment.CreatePaymentLinkDto;
 import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
+import com.winworld.coursestools.dto.payment.StripeSubscriptionLifecycleDto;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.Currency;
 import com.winworld.coursestools.enums.PaymentMethod;
@@ -51,7 +52,11 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String CURRENT_PERIOD_END = "currentPeriodEnd";
     public static final String INVOICE_ID = "invoiceId";
+    public static final String STRIPE_STATUS = "stripeStatus";
+    public static final String CANCEL_AT_PERIOD_END = "cancelAtPeriodEnd";
     private static final String ORDER_ID = "order_id";
+    private static final String CUSTOMER_SUBSCRIPTION_UPDATED = "customer.subscription.updated";
+    private static final String CUSTOMER_SUBSCRIPTION_DELETED = "customer.subscription.deleted";
 
     private final StripeProperties properties;
 
@@ -217,11 +222,7 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
      */
     public ProcessPaymentDto processWebhook(StripeRetrieveDto paymentRequest) {
         try {
-            Event event = Webhook.constructEvent(
-                    paymentRequest.getPayload(),
-                    paymentRequest.getSignature(),
-                    properties.webhookSecret()
-            );
+            Event event = constructEvent(paymentRequest);
 
             String eventType = event.getType();
             log.info("Processing Stripe webhook: {}", eventType);
@@ -242,11 +243,55 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
                 log.info("Ignoring unsupported Stripe webhook event: {}", eventType);
                 return null;
             }
-        } catch (SignatureVerificationException e) {
-            throw new SecurityException(e.getMessage());
         } catch (EventDataObjectDeserializationException e) {
             log.error("Deserialization stripe error", e);
             throw new PaymentProcessingException("Failed to deserialize event data");
+        }
+    }
+
+    public boolean isSubscriptionLifecycleEvent(StripeRetrieveDto paymentRequest) {
+        Event event = constructEvent(paymentRequest);
+        return isSubscriptionLifecycleEvent(event.getType());
+    }
+
+    public boolean isSubscriptionDeletedEvent(StripeRetrieveDto paymentRequest) {
+        Event event = constructEvent(paymentRequest);
+        return CUSTOMER_SUBSCRIPTION_DELETED.equals(event.getType());
+    }
+
+    public StripeSubscriptionLifecycleDto processSubscriptionLifecycleWebhook(StripeRetrieveDto paymentRequest) {
+        try {
+            Event event = constructEvent(paymentRequest);
+            if (!isSubscriptionLifecycleEvent(event.getType())) {
+                throw new PaymentProcessingException("Invalid event type: " + event.getType());
+            }
+
+            Subscription subscription = (Subscription) event.getDataObjectDeserializer().deserializeUnsafe();
+            return StripeSubscriptionLifecycleDto.builder()
+                    .subscriptionId(subscription.getId())
+                    .currentPeriodEnd(subscription.getCurrentPeriodEnd())
+                    .status(subscription.getStatus())
+                    .cancelAtPeriodEnd(subscription.getCancelAtPeriodEnd())
+                    .build();
+        } catch (EventDataObjectDeserializationException e) {
+            log.error("Deserialization stripe subscription lifecycle error", e);
+            throw new PaymentProcessingException("Failed to deserialize subscription lifecycle event data");
+        }
+    }
+
+    private boolean isSubscriptionLifecycleEvent(String eventType) {
+        return CUSTOMER_SUBSCRIPTION_UPDATED.equals(eventType) || CUSTOMER_SUBSCRIPTION_DELETED.equals(eventType);
+    }
+
+    private Event constructEvent(StripeRetrieveDto paymentRequest) {
+        try {
+            return Webhook.constructEvent(
+                    paymentRequest.getPayload(),
+                    paymentRequest.getSignature(),
+                    properties.webhookSecret()
+            );
+        } catch (SignatureVerificationException e) {
+            throw new SecurityException(e.getMessage());
         }
     }
 

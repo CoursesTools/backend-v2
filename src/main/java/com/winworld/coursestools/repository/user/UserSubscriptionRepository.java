@@ -115,6 +115,16 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             """)
     Optional<UserSubscription> findByIdWithUserDetails(int id);
 
+    @Query(value = """
+            SELECT us.*
+            FROM users_subscriptions us
+            WHERE us.payment_provider_data ->> 'subscriptionId' = :subscriptionId
+            AND us.payment_method = 'STRIPE'
+            ORDER BY us.updated_at DESC, us.id DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<UserSubscription> findByStripeSubscriptionId(String subscriptionId);
+
     @Query("""
                 SELECT us.plan.name AS plan, COUNT(us) AS count
                 FROM UserSubscription us
