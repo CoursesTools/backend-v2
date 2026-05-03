@@ -6,6 +6,7 @@ import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.SubscriptionReadDto;
 import com.winworld.coursestools.dto.user.UserSubscriptionReadDto;
+import com.winworld.coursestools.dto.payment.StripeSubscriptionLifecycleDto;
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.Referral;
 import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
@@ -44,15 +45,19 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CANCEL_AT_PERIOD_END;
 import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CURRENT_PERIOD_END;
+import static com.winworld.coursestools.service.payment.impl.StripePaymentService.STRIPE_STATUS;
 
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.CREATED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.EXTENDED;
+import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_START;
 import static com.winworld.coursestools.enums.SubscriptionEventType.RESTORED;
 import static com.winworld.coursestools.enums.SubscriptionEventType.TRIAL_CREATED;
@@ -66,7 +71,6 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionService {
-    public static final int PAYMENT_GRACE_DAYS = 2;
     public static final int GRACE_PERIOD_DAYS = 7;
     private static final LocalDateTime LIFETIME_EXPIRY = LocalDateTime.of(2100, 12, 31, 23, 59, 59);
 
@@ -202,6 +206,89 @@ public class SubscriptionService {
         }
     }
 
+    @Transactional
+    public void syncStripeSubscriptionUpdated(StripeSubscriptionLifecycleDto dto) {
+        UserSubscription subscription = userSubscriptionRepository
+                .findByStripeSubscriptionId(dto.getSubscriptionId())
+                .orElse(null);
+
+        if (subscription == null) {
+            log.warn("Stripe subscription update ignored: local subscription not found, stripeSubscriptionId={}",
+                    dto.getSubscriptionId());
+            return;
+        }
+        if (!STRIPE.equals(subscription.getPaymentMethod())) {
+            log.warn("Stripe subscription update ignored: local subscription {} is no longer Stripe-backed",
+                    subscription.getId());
+            return;
+        }
+
+        syncStripeLifecycleMetadata(subscription, dto);
+        userSubscriptionService.save(subscription);
+        log.info("Stripe subscription {} synced to local subscription {}", dto.getSubscriptionId(), subscription.getId());
+    }
+
+    @Transactional
+    public void handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto dto) {
+        UserSubscription subscription = userSubscriptionRepository
+                .findByStripeSubscriptionId(dto.getSubscriptionId())
+                .orElse(null);
+
+        if (subscription == null) {
+            log.warn("Stripe subscription delete ignored: local subscription not found, stripeSubscriptionId={}",
+                    dto.getSubscriptionId());
+            return;
+        }
+        if (!STRIPE.equals(subscription.getPaymentMethod())) {
+            log.warn("Stripe subscription delete ignored: local subscription {} is no longer Stripe-backed",
+                    subscription.getId());
+            return;
+        }
+
+        syncStripeLifecycleMetadata(subscription, dto);
+        if (subscription.getStatus() == TERMINATED) {
+            userSubscriptionService.save(subscription);
+            return;
+        }
+
+        User user = subscription.getUser();
+        Referral referred = user.getReferred();
+        if (referred != null) {
+            referred.setActive(false);
+        }
+        subscription.setStatus(TERMINATED);
+        userSubscriptionService.save(subscription);
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, subscription));
+        log.warn("Stripe subscription {} deleted; local subscription {} terminated",
+                dto.getSubscriptionId(), subscription.getId());
+    }
+
+    private void syncStripeLifecycleMetadata(
+            UserSubscription subscription,
+            StripeSubscriptionLifecycleDto dto
+    ) {
+        Map<String, Object> paymentProviderData = new HashMap<>();
+        if (subscription.getPaymentProviderData() != null) {
+            paymentProviderData.putAll(subscription.getPaymentProviderData());
+        }
+
+        if (dto.getCurrentPeriodEnd() != null) {
+            paymentProviderData.put(CURRENT_PERIOD_END, dto.getCurrentPeriodEnd());
+            subscription.setExpiredAt(LocalDateTime.ofInstant(
+                    Instant.ofEpochSecond(dto.getCurrentPeriodEnd()),
+                    ZoneOffset.UTC
+            ));
+        }
+        if (dto.getStatus() != null) {
+            paymentProviderData.put(STRIPE_STATUS, dto.getStatus());
+        }
+        if (dto.getCancelAtPeriodEnd() != null) {
+            paymentProviderData.put(CANCEL_AT_PERIOD_END, dto.getCancelAtPeriodEnd());
+        }
+
+        subscription.setPaymentProviderData(paymentProviderData);
+    }
+
     private UserSubscription createNewSubscription(
             UserSubscription currentSubscription,
             Order order,
@@ -260,9 +347,7 @@ public class SubscriptionService {
     ) {
         var plan = order.getPlan();
         // For Stripe renewals, mirror CURRENT_PERIOD_END exactly; Stripe controls the billing boundary.
-        // For non-Stripe renewals, extend from the current expiry by the plan duration only — do NOT
-        // add PAYMENT_GRACE_DAYS here, because the existing expiredAt already includes grace days from
-        // prior renewals and compounding them causes ~2 days of drift per renewal (~1 extra month per year).
+        // For non-Stripe renewals, extend from the current expiry by the plan duration only.
         LocalDateTime expirationDate;
         if (paymentProviderData != null && paymentProviderData.containsKey(CURRENT_PERIOD_END)) {
             Long periodEnd = (Long) paymentProviderData.get(CURRENT_PERIOD_END);
@@ -334,7 +419,7 @@ public class SubscriptionService {
      * Default ({@code keepExpirationDate=false}): routes through the canonical
      * payment-update path via a transient (never-persisted) Order. Reuses every
      * tested branch — create / extend / grace-restore, Stripe-cancel-on-switch,
-     * grace-day rules, trial-handoff.
+     * expiry rules, trial-handoff.
      * <p>
      * {@code keepExpirationDate=true}: tier/plan swap on an existing subscription
      * without touching its {@code expiredAt}. Requires an existing non-terminated
@@ -517,7 +602,7 @@ public class SubscriptionService {
                     ZoneOffset.UTC
             );
         }
-        return baseDate.plusDays(PAYMENT_GRACE_DAYS + plan.getDurationDays());
+        return baseDate.plusDays(plan.getDurationDays());
     }
 
     @Transactional

@@ -35,6 +35,16 @@ public class PaymentFacade {
                 .payload(payload)
                 .signature(signature)
                 .build();
+        if (stripePaymentService.isSubscriptionLifecycleEvent(dto)) {
+            var lifecycleDto = stripePaymentService.processSubscriptionLifecycleWebhook(dto);
+            if (stripePaymentService.isSubscriptionDeletedEvent(dto)) {
+                subscriptionService.handleStripeSubscriptionDeleted(lifecycleDto);
+            } else {
+                subscriptionService.syncStripeSubscriptionUpdated(lifecycleDto);
+            }
+            return;
+        }
+
         ProcessPaymentDto paymentDto = stripePaymentService.processWebhook(dto);
         if (paymentDto != null) {
             processOrder(paymentDto);
