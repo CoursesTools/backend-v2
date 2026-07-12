@@ -89,7 +89,7 @@ public class UserSocialService {
             }
             // Skip the bot rename if nothing actually changed (case-only normalization).
             if (!newTradingViewName.equalsIgnoreCase(oldTradingViewName)) {
-                var changeNameDto = new ChangeTradingViewNameDto(
+                var changeNameDto = ChangeTradingViewNameDto.rename(
                         oldTradingViewName,
                         newTradingViewName,
                         userSubscription.getPlan().getTier(),
