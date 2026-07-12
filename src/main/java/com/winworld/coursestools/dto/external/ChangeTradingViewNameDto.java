@@ -1,6 +1,5 @@
 package com.winworld.coursestools.dto.external;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.winworld.coursestools.enums.SubscriptionTier;
@@ -22,8 +21,8 @@ public class ChangeTradingViewNameDto {
     @JsonProperty("new")
     private String newName;
     private SubscriptionTier tier;
-    // Same fixed whole-second bot format as ActivateTradingViewAccessDto.expiration.
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    // See ActivateTradingViewAccessDto.expiration: deliberately no strict @JsonFormat,
+    // to keep legacy retry-queue payloads deserializable.
     private LocalDateTime expiration;
     private boolean isLifetime;
 

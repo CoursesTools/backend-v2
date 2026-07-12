@@ -1,6 +1,5 @@
 package com.winworld.coursestools.dto.external;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.winworld.coursestools.enums.SubscriptionTier;
@@ -20,13 +19,14 @@ public class ActivateTradingViewAccessDto {
 
     /**
      * Days of head-room added to the real subscription expiry before it is sent to
-     * the TradingView bot. The bot receives a naive (offset-less) timestamp; on
-     * Moscow-time infrastructure it can read that value a few hours early, and
-     * Stripe's renewal webhook can land slightly after the period boundary. A
-     * one-day pad keeps bot access alive across both gaps so paying users are never
-     * dropped shortly before their auto-charge. The padded value is what gets
-     * persisted to the retry queue, so retries replay the same expiration without
-     * compounding the pad.
+     * the TradingView bot, applied to EVERY non-lifetime grant. The bot receives a
+     * naive (offset-less) timestamp; on Moscow-time infrastructure it can read that
+     * value a few hours early, and Stripe's renewal webhook can land slightly after
+     * the period boundary — a one-day pad keeps paying users from being dropped just
+     * before their auto-charge. Because the pad is uniform (there is no bot-revoke
+     * channel), it also grants trials and canceled/terminated subs up to one extra
+     * day of bot access; that is an accepted trade-off. The padded value is persisted
+     * to the retry queue, so retries replay the same expiration without compounding.
      */
     public static final long BOT_EXPIRY_BUFFER_DAYS = 1;
 
@@ -34,11 +34,12 @@ public class ActivateTradingViewAccessDto {
     private SubscriptionTier tier;
     @JsonProperty(value = "tv")
     private String tradingViewName;
-    // Fixed whole-second format, scoped to this bot payload ONLY (does not touch the
-    // global ObjectMapper / API responses). Guarantees a stable "yyyy-MM-ddTHH:mm:ss"
-    // shape regardless of sub-second precision or :00 seconds, overriding the module's
-    // default ISO_LOCAL_DATE_TIME serializer for this field.
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    // Serialized/deserialized by the app-wide ObjectMapper's ISO_LOCAL_DATE_TIME
+    // handling (see ApplicationConfiguration). Intentionally NOT pinned with a strict
+    // @JsonFormat pattern: the bot already accepts the fractional/whole-second/no-second
+    // forms this produces (verified in prod), and a strict pattern would also constrain
+    // DESERIALIZATION and reject legacy fractional-second rows already stored in the
+    // trading_view_retry_jobs.payload queue.
     private LocalDateTime expiration;
     private boolean isLifetime;
 

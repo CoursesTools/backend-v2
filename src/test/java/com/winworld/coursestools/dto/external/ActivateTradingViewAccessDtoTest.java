@@ -1,31 +1,18 @@
 package com.winworld.coursestools.dto.external;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
+import com.winworld.coursestools.config.ApplicationConfiguration;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ActivateTradingViewAccessDtoTest {
 
-    // Mirrors ApplicationConfiguration.objectMapper(): a globally-registered
-    // ISO_LOCAL_DATE_TIME serializer for LocalDateTime. The DTO's field-level
-    // @JsonFormat must override it for the "expiration" property.
-    private ObjectMapper prodLikeMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        JavaTimeModule javaTimeModule = new JavaTimeModule();
-        javaTimeModule.addSerializer(LocalDateTime.class,
-                new LocalDateTimeSerializer(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        mapper.registerModule(javaTimeModule);
-        return mapper;
-    }
+    // Exercise the ACTUAL production bean rather than a hand-copied mirror.
+    private final ObjectMapper mapper = new ApplicationConfiguration().objectMapper();
 
     @Test
     void grant_addsOneDayBuffer_forNonLifetime() {
@@ -47,31 +34,36 @@ class ActivateTradingViewAccessDtoTest {
     }
 
     @Test
-    void expiration_serializesToWholeSeconds_droppingSubSecondPrecision() throws Exception {
-        // Reproduces a real prod trial value: 2026-07-17T02:46:35.991576
-        LocalDateTime fractional = LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000);
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", fractional, true);
-        String json = prodLikeMapper().writeValueAsString(dto);
-        assertThat(json).contains("\"expiration\":\"2026-07-17T02:46:35\"");
-        assertThat(json).doesNotContain(".991");
-    }
-
-    @Test
-    void expiration_alwaysIncludesSeconds_evenWhenZero() throws Exception {
-        // Bare ISO_LOCAL_DATE_TIME would emit "...T02:46" (no seconds) here; @JsonFormat forces ss.
-        LocalDateTime wholeMinute = LocalDateTime.of(2026, 7, 17, 2, 46, 0);
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", wholeMinute, true);
-        String json = prodLikeMapper().writeValueAsString(dto);
-        assertThat(json).contains("\"expiration\":\"2026-07-17T02:46:00\"");
-    }
-
-    @Test
     void wireContract_keysUnchanged() throws Exception {
         var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick",
                 LocalDateTime.of(2026, 8, 11, 15, 41, 38), false);
-        String json = prodLikeMapper().writeValueAsString(dto);
+        String json = mapper.writeValueAsString(dto);
         assertThat(json).contains("\"tv\":\"nick\"");     // @JsonProperty("tv")
         assertThat(json).contains("\"lifetime\":false");  // Lombok isLifetime -> "lifetime" key (bot contract preserved)
         assertThat(json).contains("\"tier\":\"PRO\"");
+    }
+
+    @Test
+    void retryQueueRoundTrip_preservesValue_includingFractionalSeconds() throws Exception {
+        // The retry queue serializes the padded dto to trading_view_retry_jobs.payload and
+        // later deserializes it back; that round-trip must be lossless for now()-derived
+        // (fractional-second) expiries, which are the common case for trials.
+        LocalDateTime fractional = LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000);
+        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", fractional, true);
+        String json = mapper.writeValueAsString(dto);
+        var back = mapper.readValue(json, ActivateTradingViewAccessDto.class);
+        assertThat(back.getExpiration()).isEqualTo(dto.getExpiration());
+        assertThat(back.getTradingViewName()).isEqualTo("nick");
+    }
+
+    @Test
+    void deserializesLegacyFractionalSecondPayload() throws Exception {
+        // Guards against re-introducing a strict @JsonFormat: legacy queue rows written by the
+        // old serializer carry fractional seconds and must still parse after deploy.
+        String legacy = "{\"email\":\"e@x.com\",\"tier\":\"PRO\",\"tv\":\"nick\","
+                + "\"expiration\":\"2026-07-17T02:46:35.991576\",\"lifetime\":false}";
+        var dto = mapper.readValue(legacy, ActivateTradingViewAccessDto.class);
+        assertThat(dto.getExpiration()).isEqualTo(LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000));
+        assertThat(dto.getTradingViewName()).isEqualTo("nick");
     }
 }

@@ -26,24 +26,20 @@ public class ActivatingSubscriptionService {
     @Value("${urls.change-tradingview-bot}")
     private String changeTradingViewBotUrl;
 
-    @Retry(name = "client-error-included", fallbackMethod = "handleActivationFallback")
+    @Retry(name = "default", fallbackMethod = "handleActivationFallback")
     public void activateTradingViewAccess(Integer userId, ActivateTradingViewAccessDto dto) {
         try {
             restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
-            // Bot said: TradingView user doesn't exist. Permanent error — don't retry,
-            // don't enqueue a PENDING job. TradingViewUserNotFoundException extends
-            // DataValidationException, which stays ignore-listed under client-error-included,
-            // so it propagates immediately to the caller (admin grant, user self-bind, or
-            // async listener) as a clean 400-mappable exception for DEAD surfacing.
+            // Bot said the TradingView user doesn't exist. Permanent input error:
+            // TradingViewUserNotFoundException extends DataValidationException, which the
+            // retry config ignore-lists, so it is not re-attempted.
             throw new TradingViewUserNotFoundException(dto.getTradingViewName());
         } catch (RestClientResponseException e) {
-            // Any OTHER non-2xx (400/422/5xx). Previously HttpClientErrorException was
-            // ignore-listed under the "default" retry config, so a 4xx here vanished into the
-            // async uncaught-exception handler with the subscription stuck PENDING and no
-            // retry row. Capture the bot's real status + body (previously discarded) for
-            // diagnosis, then rethrow: client-error-included does NOT ignore these, so @Retry
-            // runs and — once exhausted — handleActivationFallback enqueues a durable retry.
+            // Any other non-2xx from the bot (400/422/5xx). The bot's status + response
+            // body were previously discarded, leaving these failures undiagnosable in logs
+            // and on the admin retry page. Capture them here, then rethrow so the existing
+            // @Retry + durable handleActivationFallback machinery still handles the failure.
             log.error("TV activation rejected by bot: userId={}, name={}, tier={}, expiration={}, status={}, body={}",
                     userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration(),
                     e.getStatusCode(), e.getResponseBodyAsString());
@@ -53,7 +49,7 @@ public class ActivatingSubscriptionService {
                 userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration());
     }
 
-    @Retry(name = "client-error-included", fallbackMethod = "handleRenameFallback")
+    @Retry(name = "default", fallbackMethod = "handleRenameFallback")
     public void changeTradingViewUsername(Integer userId, ChangeTradingViewNameDto dto) {
         try {
             restTemplate.postForEntity(changeTradingViewBotUrl, dto, Void.class);
@@ -61,8 +57,9 @@ public class ActivatingSubscriptionService {
             // Bot said: the "old" TradingView user doesn't exist. Nothing to rename.
             throw new TradingViewUserNotFoundException(dto.getOldName());
         } catch (RestClientResponseException e) {
-            // Non-404 bot rejection — same silent-channel fix as activateTradingViewAccess:
-            // log the real status + body, then rethrow so the rename retry is durable.
+            // Non-404 bot rejection — same diagnostics as activateTradingViewAccess:
+            // capture the bot's status + body (previously discarded), then rethrow so the
+            // existing @Retry + durable handleRenameFallback machinery still handles it.
             log.error("TV rename rejected by bot: userId={}, {} -> {}, tier={}, expiration={}, status={}, body={}",
                     userId, dto.getOldName(), dto.getNewName(), dto.getTier(), dto.getExpiration(),
                     e.getStatusCode(), e.getResponseBodyAsString());
