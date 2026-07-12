@@ -21,6 +21,28 @@ public class ChangeTradingViewNameDto {
     @JsonProperty("new")
     private String newName;
     private SubscriptionTier tier;
+    // See ActivateTradingViewAccessDto.expiration: deliberately no strict @JsonFormat,
+    // to keep legacy retry-queue payloads deserializable.
     private LocalDateTime expiration;
     private boolean isLifetime;
+
+    /**
+     * Build a rename payload, padding the expiry by
+     * {@link ActivateTradingViewAccessDto#BOT_EXPIRY_BUFFER_DAYS} exactly like a grant
+     * so a rename does not silently shorten the buffered access window.
+     */
+    public static ChangeTradingViewNameDto rename(
+            String oldName,
+            String newName,
+            SubscriptionTier tier,
+            LocalDateTime expiredAt,
+            boolean isLifetime
+    ) {
+        return new ChangeTradingViewNameDto(
+                oldName,
+                newName,
+                tier,
+                ActivateTradingViewAccessDto.bufferBotExpiration(expiredAt, isLifetime),
+                isLifetime);
+    }
 }

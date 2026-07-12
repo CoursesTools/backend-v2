@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -60,7 +61,7 @@ public class TradingViewRetryService {
             log.error("Failed to serialize retry payload for userId={} type={}", userId, type, e);
             return;
         }
-        String errorMsg = truncate(cause == null ? null : cause.toString());
+        String errorMsg = truncate(cause == null ? null : describeError(cause));
         LocalDateTime now = LocalDateTime.now();
 
         var existing = repository.findByUserIdAndTypeAndStatus(userId, type, TradingViewRetryJobStatus.PENDING);
@@ -200,7 +201,7 @@ public class TradingViewRetryService {
         } catch (Exception e) {
             int attempts = job.getAttempts() + 1;
             job.setAttempts(attempts);
-            job.setLastError(truncate(e.toString()));
+            job.setLastError(truncate(describeError(e)));
             if (attempts >= maxAttempts) {
                 job.setStatus(TradingViewRetryJobStatus.DEAD);
                 log.error("TV retry job moved to DEAD after {} attempts: jobId={} type={} userId={}",
@@ -266,5 +267,18 @@ public class TradingViewRetryService {
     private static String truncate(String s) {
         if (s == null) return null;
         return s.length() > 2048 ? s.substring(0, 2048) : s;
+    }
+
+    // Include the bot's HTTP status + response body when the failure is an HTTP error,
+    // so the stored lastError (surfaced on the admin TV-retry page) is diagnosable
+    // instead of just "<exception>: 400 Bad Request".
+    private static String describeError(Throwable e) {
+        if (e instanceof RestClientResponseException re) {
+            // Use the class name, not re.toString(): the latter already embeds a copy of the
+            // response body, which would duplicate it within the 2048-char truncate() budget.
+            return re.getClass().getName() + " | status=" + re.getStatusCode()
+                    + " body=" + re.getResponseBodyAsString();
+        }
+        return String.valueOf(e);
     }
 }

@@ -387,7 +387,7 @@ public class SubscriptionService {
         newSubscription.setExpiredAt(LIFETIME_EXPIRY);
 
         user.addSubscription(newSubscription);
-        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
                 user.getEmail(), plan.getTier(),
                 user.getSocial().getTradingViewName(), newSubscription.getExpiredAt(), true);
         activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
@@ -408,7 +408,7 @@ public class SubscriptionService {
         subscription.setPlan(lifetimePlan);
         subscription.setPaymentMethod(PaymentMethod.MANUAL);
         subscription.setExpiredAt(LIFETIME_EXPIRY);
-        ActivateTradingViewAccessDto dto = new ActivateTradingViewAccessDto(
+        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
                 user.getEmail(), lifetimePlan.getTier(),
                 user.getSocial().getTradingViewName(), subscription.getExpiredAt(), true);
         activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
@@ -621,7 +621,7 @@ public class SubscriptionService {
         userSubscription.setExpiredAt(expiration);
         activatingSubscriptionService.activateTradingViewAccess(
                 user.getId(),
-                new ActivateTradingViewAccessDto(user.getEmail(), userSubscription.getPlan().getTier(),
+                ActivateTradingViewAccessDto.grant(user.getEmail(), userSubscription.getPlan().getTier(),
                         dto.getUsername(), expiration, userSubscription.getPlan().getName() == Plan.LIFETIME)
         );
         return userMapper.toDto(userSubscriptionService.save(userSubscription));

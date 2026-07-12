@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 @Slf4j
@@ -30,11 +31,19 @@ public class ActivatingSubscriptionService {
         try {
             restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
-            // Bot said: TradingView user doesn't exist. Permanent error — don't retry,
-            // don't enqueue a PENDING job. Propagate as a DataValidationException so
-            // resilience4j's ignore list skips the fallback and the caller (admin grant,
-            // user self-bind, or async listener) gets a clean 400-mappable exception.
+            // Bot said the TradingView user doesn't exist. Permanent input error:
+            // TradingViewUserNotFoundException extends DataValidationException, which the
+            // retry config ignore-lists, so it is not re-attempted.
             throw new TradingViewUserNotFoundException(dto.getTradingViewName());
+        } catch (RestClientResponseException e) {
+            // Any other non-2xx from the bot (400/422/5xx). The bot's status + response
+            // body were previously discarded, leaving these failures undiagnosable in logs
+            // and on the admin retry page. Capture them here, then rethrow so the existing
+            // @Retry + durable handleActivationFallback machinery still handles the failure.
+            log.error("TV activation rejected by bot: userId={}, name={}, tier={}, expiration={}, status={}, body={}",
+                    userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration(),
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            throw e;
         }
         log.info("TV activation succeeded: userId={}, name={}, tier={}, expiration={}",
                 userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration());
@@ -47,6 +56,14 @@ public class ActivatingSubscriptionService {
         } catch (HttpClientErrorException.NotFound e) {
             // Bot said: the "old" TradingView user doesn't exist. Nothing to rename.
             throw new TradingViewUserNotFoundException(dto.getOldName());
+        } catch (RestClientResponseException e) {
+            // Non-404 bot rejection — same diagnostics as activateTradingViewAccess:
+            // capture the bot's status + body (previously discarded), then rethrow so the
+            // existing @Retry + durable handleRenameFallback machinery still handles it.
+            log.error("TV rename rejected by bot: userId={}, {} -> {}, tier={}, expiration={}, status={}, body={}",
+                    userId, dto.getOldName(), dto.getNewName(), dto.getTier(), dto.getExpiration(),
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            throw e;
         }
         log.info("TV rename succeeded: userId={}, {} -> {}, tier={}, expiration={}",
                 userId, dto.getOldName(), dto.getNewName(), dto.getTier(), dto.getExpiration());
