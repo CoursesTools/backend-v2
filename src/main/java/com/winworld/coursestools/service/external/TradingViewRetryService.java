@@ -61,7 +61,7 @@ public class TradingViewRetryService {
             log.error("Failed to serialize retry payload for userId={} type={}", userId, type, e);
             return;
         }
-        String errorMsg = truncate(cause == null ? null : cause.toString());
+        String errorMsg = truncate(cause == null ? null : describeError(cause));
         LocalDateTime now = LocalDateTime.now();
 
         var existing = repository.findByUserIdAndTypeAndStatus(userId, type, TradingViewRetryJobStatus.PENDING);
@@ -274,7 +274,10 @@ public class TradingViewRetryService {
     // instead of just "<exception>: 400 Bad Request".
     private static String describeError(Throwable e) {
         if (e instanceof RestClientResponseException re) {
-            return re + " | status=" + re.getStatusCode() + " body=" + re.getResponseBodyAsString();
+            // Use the class name, not re.toString(): the latter already embeds a copy of the
+            // response body, which would duplicate it within the 2048-char truncate() budget.
+            return re.getClass().getName() + " | status=" + re.getStatusCode()
+                    + " body=" + re.getResponseBodyAsString();
         }
         return String.valueOf(e);
     }
