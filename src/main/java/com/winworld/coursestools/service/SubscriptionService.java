@@ -402,16 +402,24 @@ public class SubscriptionService {
                 .findFirst()
                 .orElseThrow(() -> new EntityNotFoundException(tier + " lifetime plan not found"));
 
+        // Grant TV access FIRST. If the nickname 404s, activateTradingViewAccess now throws
+        // TradingViewUserNotFoundException and rolls the @Transactional back BEFORE the
+        // irreversible remote Stripe cancel below — otherwise a rollback would leave the DB on
+        // the old STRIPE plan while the Stripe subscription is already cancelled, silently
+        // lapsing a paying customer at period end. Safe: cancelSubscription never throws (it
+        // logs StripeException), and the setters below can't fail, so nothing after the TV call
+        // can half-apply.
+        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
+                user.getEmail(), lifetimePlan.getTier(),
+                user.getSocial().getTradingViewName(), LIFETIME_EXPIRY, true);
+        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
+
         if (STRIPE.equals(subscription.getPaymentMethod())) {
             stripePaymentService.cancelSubscription(subscription);
         }
         subscription.setPlan(lifetimePlan);
         subscription.setPaymentMethod(PaymentMethod.MANUAL);
         subscription.setExpiredAt(LIFETIME_EXPIRY);
-        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
-                user.getEmail(), lifetimePlan.getTier(),
-                user.getSocial().getTradingViewName(), subscription.getExpiredAt(), true);
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
         subscription.setStatus(SubscriptionStatus.GRANTED);
     }
 

@@ -68,14 +68,6 @@ resilience4j:
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException
           - com.winworld.coursestools.exception.exceptions.DataValidationException
-      client-error-included:
-        maxAttempts: 3
-        waitDuration: 1s
-        enable-exponential-backoff: true
-        exponential-backoff-multiplier: 2
-        exponential-max-wait-duration: 5s
-        ignore-exceptions:
-          - com.winworld.coursestools.exception.exceptions.DataValidationException
 
 
 jwt:

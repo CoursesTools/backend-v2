@@ -95,7 +95,13 @@ public class UserTransactionService {
         return transactionMapper.toDto(transaction);
     }
 
-    @Retry(name = "client-error-included", fallbackMethod = "handleFallback")
+    // Was @Retry(name="client-error-included"). That @Retry never actually ran: this method is
+    // private and self-invoked, so Spring's proxy-based AOP cannot intercept it (and separately,
+    // the config had no resilience4j.retry.instances binding, so the name resolved to "default"
+    // anyway). Renamed to "default" to match reality and the orphaned config was deleted;
+    // withdrawal retry semantics are unchanged. (Whether withdrawals SHOULD have a working retry
+    // — the private/self-invocation disables it entirely — is a deferred question.)
+    @Retry(name = "default", fallbackMethod = "handleFallback")
     private String requestWithdrawal(WithdrawRequestDto dto) {
         var response = restTemplate.postForEntity(
                 withdrawalUrl,
