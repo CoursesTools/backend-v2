@@ -29,6 +29,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.mockito.InOrder;
+import com.winworld.coursestools.entity.subscription.SubscriptionType;
+import com.winworld.coursestools.entity.user.UserSocial;
+import com.winworld.coursestools.enums.SubscriptionName;
+import com.winworld.coursestools.enums.SubscriptionTier;
+import com.winworld.coursestools.exception.exceptions.TradingViewUserNotFoundException;
+import java.util.List;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -50,6 +57,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 @ExtendWith(MockitoExtension.class)
 class SubscriptionServiceTest {
@@ -407,5 +418,63 @@ class SubscriptionServiceTest {
         verify(userSubscriptionService, never()).save(subscription);
         verify(stripePaymentService, never()).cancelSubscription(subscription);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    private SubscriptionType lifetimeSubscriptionType(SubscriptionTier tier) {
+        SubscriptionPlan lifetimePlan = new SubscriptionPlan();
+        lifetimePlan.setTier(tier);
+        lifetimePlan.setName(Plan.LIFETIME);
+        SubscriptionType type = new SubscriptionType();
+        type.setName(SubscriptionName.COURSESTOOLS);
+        type.setPlans(List.of(lifetimePlan));
+        return type;
+    }
+
+    private User userWithTradingViewName(String tvName) {
+        User user = new User();
+        user.setId(1);
+        user.setEmail("e@x.com");
+        UserSocial social = new UserSocial();
+        social.setTradingViewName(tvName);
+        user.setSocial(social);
+        return user;
+    }
+
+    @Test
+    void grantLifetimeToExisting_activatesTvBeforeCancelingStripe() {
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(lifetimeSubscriptionType(SubscriptionTier.PRO)));
+        User user = userWithTradingViewName("nick");
+        UserSubscription subscription = UserSubscription.builder()
+                .paymentMethod(PaymentMethod.STRIPE)
+                .build();
+
+        subscriptionService.grantLifetimeToExistingSubscription(subscription, user, SubscriptionTier.PRO);
+
+        // TV activation must happen BEFORE the irreversible Stripe cancel, so a 404 aborts cleanly.
+        InOrder inOrder = inOrder(activatingSubscriptionService, stripePaymentService);
+        inOrder.verify(activatingSubscriptionService).activateTradingViewAccess(eq(1), any());
+        inOrder.verify(stripePaymentService).cancelSubscription(subscription);
+        assertEquals(SubscriptionStatus.GRANTED, subscription.getStatus());
+    }
+
+    @Test
+    void grantLifetimeToExisting_doesNotCancelStripe_whenTvNicknameNotFound() {
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(lifetimeSubscriptionType(SubscriptionTier.PRO)));
+        User user = userWithTradingViewName("nick");
+        UserSubscription subscription = UserSubscription.builder()
+                .paymentMethod(PaymentMethod.STRIPE)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .build();
+        doThrow(new TradingViewUserNotFoundException("nick"))
+                .when(activatingSubscriptionService).activateTradingViewAccess(any(), any());
+
+        assertThrows(TradingViewUserNotFoundException.class, () ->
+                subscriptionService.grantLifetimeToExistingSubscription(subscription, user, SubscriptionTier.PRO));
+
+        // The permanent 404 must abort before the irreversible remote Stripe cancel.
+        verify(stripePaymentService, never()).cancelSubscription(any());
+        assertNotEquals(SubscriptionStatus.GRANTED, subscription.getStatus());
     }
 }

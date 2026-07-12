@@ -85,4 +85,24 @@ public class ActivatingSubscriptionService {
                 userId, dto.getOldName(), dto.getNewName(), dto.getExpiration(), throwable);
         retryService.enqueue(userId, TradingViewRetryJobType.RENAME, dto, throwable);
     }
+
+    // resilience4j's fallback catches EVERY throwable — including the ignore-listed
+    // TradingViewUserNotFoundException (a 404: the nickname doesn't exist on TradingView).
+    // Without these more-specific overloads that permanent error would be swallowed here and
+    // mis-enqueued as a transient PENDING retry, so the caller's handling never runs: the
+    // async listener's immediate DEAD-surfacing, and the 400 mapping for admin grants / user
+    // self-bind. FallbackMethod dispatches to the most specific overload by thrown type, so a
+    // 404 rethrows to the caller while transient failures fall through to the Throwable
+    // overloads above that enqueue a durable retry.
+    @SuppressWarnings("unused")
+    public void handleActivationFallback(Integer userId, ActivateTradingViewAccessDto dto,
+                                         TradingViewUserNotFoundException e) {
+        throw e;
+    }
+
+    @SuppressWarnings("unused")
+    public void handleRenameFallback(Integer userId, ChangeTradingViewNameDto dto,
+                                     TradingViewUserNotFoundException e) {
+        throw e;
+    }
 }
