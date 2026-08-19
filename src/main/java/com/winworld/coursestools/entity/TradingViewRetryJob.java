@@ -61,4 +61,7 @@ public class TradingViewRetryJob extends BaseEntity {
 
     @Column(name = "force_retry_count", nullable = false)
     private Integer forceRetryCount;
+
+    @Column(name = "command_id", length = 36)
+    private String commandId;
 }

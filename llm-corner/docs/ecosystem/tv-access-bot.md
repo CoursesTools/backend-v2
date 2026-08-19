@@ -33,9 +33,9 @@ Body: `ActivateTradingViewAccessDto`
 - `expiration` is a **naive** ISO local date-time (no offset), serialized by
   the app-wide ObjectMapper; deliberately no strict `@JsonFormat` (DTO
   comment, lines 37-42).
-- Every non-lifetime expiry is padded by `BOT_EXPIRY_BUFFER_DAYS = 1` via the
-  `grant(...)` factory (lines 31, 52-61) so Moscow-tz reads / late Stripe
-  renewal webhooks don't drop paying users early.
+- Successful customer payments use `customerPaymentGrant(...)`, which pads
+  non-lifetime expiry by one day. Trials, admin actions, lifecycle syncs, and
+  Direct Extend use `exactGrant(...)` with no pad (DEC-002).
 - Lifetime subs send far-future expiry plus `isLifetime: true`.
 
 Called from `service/external/ActivatingSubscriptionService.java:30` — call
@@ -46,7 +46,7 @@ and `service/SubscriptionService.java:393,414,622`.
 
 Body: `ChangeTradingViewNameDto`
 (`dto/external/ChangeTradingViewNameDto.java:88-97`): `old`, `new`, `tier`,
-`expiration` (same padding via `rename(...)`, lines 104-117), `isLifetime`.
+`expiration` (exact DB expiration via `rename(...)`), `isLifetime`.
 Called from `service/user/UserSocialService.java:99` when a user changes
 their TradingView name.
 
@@ -81,13 +81,14 @@ only logged (`UserTransactionService.java:92-94`).
   commands; the backend cannot confirm a grant landed. Success = 2xx, nothing
   more (verified: only `postForEntity` calls exist against these URLs).
 - **No revoke channel.** Expired access is only cut off by the expiration
-  timestamp the bot already holds (DTO comment,
-  `ActivateTradingViewAccessDto.java:26-30`) — hence the uniform +1 day pad is
-  an accepted over-grant.
-- **Naive timestamps + likely Moscow tz on the bot side** — never send
-  offset-bearing timestamps; keep the pad when changing serialization.
-- Padded expiration is persisted into the retry queue payload, so replays do
-  not compound the pad (DTO comment, lines 28-29).
+  timestamp the bot already holds. Payment grants keep a one-day safety pad;
+  non-payment commands intentionally replace it with their exact selected
+  expiration.
+- **Naive timestamps + likely Moscow tz on the bot side** — never change the
+  wire format without bot-owner coordination. The one-day safety pad remains
+  only for real customer payments.
+- Final exact-or-buffered expiration is persisted into retry payload JSON, so
+  replays do not transform or compound it.
 
 ## Sending work to their agents
 

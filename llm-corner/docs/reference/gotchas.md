@@ -63,11 +63,42 @@ code pointer.
 
 ## TradingView bot expiry
 
+### Async subscription events must not re-read payload state or bypass ordering
+
+**Symptom:** an old paid event runs after a newer admin/Direct action and adds
+the payment day to the newer manual expiration, or an old exact event overwrites
+a newer paid payload.
+**Root cause:** `@Async` after-commit execution order is not transaction order.
+A snapshot prevents policy/state mixing but does not stop an old snapshot from
+being sent after a newer Direct command.
+**Fix:** activation producers transactionally stage the final payload with a
+fresh `command_id` in the user's unique PENDING ACTIVATE retry row. Delivery
+locks subscription then command row and sends only the matching current ID.
+Direct, synchronous grants, async listeners, and retry scheduling share that
+slot, so the newest staged command is final. A stale event only reconciles an
+unchanged PENDING subscription; it never sends or revives terminal/grace state.
+
 ### TV access revoked ~3h before the Stripe auto-charge
 
 **Symptom:** paying users lose indicator access a few hours before their renewal charge lands.
 **Root cause:** the bot receives a naive, offset-less timestamp. The value is UTC, but the bot runs on Moscow-time infra (bot at 45.141.184.24) and reads it as MSK → revokes ~3h early; Stripe's renewal webhook can also land slightly after the period boundary.
-**Fix:** every non-lifetime grant/rename is padded by `BOT_EXPIRY_BUFFER_DAYS = 1` via the factory methods `ActivateTradingViewAccessDto.grant()` / `ChangeTradingViewNameDto.rename()` (`ActivateTradingViewAccessDto.java:31-69`). Never construct these DTOs with the all-args constructor. The padded value is persisted to the retry queue so replays don't compound. Accepted trade-off: trials/terminated subs get up to one free extra day (no revoke channel exists). Commit `ea8ec83` (PR #33).
+**Fix:** successful customer-payment activations use
+`ActivateTradingViewAccessDto.customerPaymentGrant()` and receive the one-day
+buffer. Every non-payment path uses `exactGrant()` (rename is exact too).
+`SubscriptionChangeStatusEvent.tradingViewExpirationPolicy` makes the source
+explicit because admin MONTH/YEAR grants otherwise look paid. The final value
+is persisted to the retry queue so replay never compounds it. See DEC-002.
+
+### Expired trials stranded in PENDING or GRACE_PERIOD
+
+**Symptom:** an expired trial remains non-terminated indefinitely; scheduler
+order can move it to GRACE_PERIOD and the trial cleanup never sees it.
+**Root cause:** the generic expired query included trials, while the trial
+query selected only GRANTED. Both hourly jobs run on the same cron.
+**Fix:** the paid query now requires `isTrial=false`; trial cleanup selects
+every expired `status <> TERMINATED` trial. Paid candidates are also locked and
+revalidated so a concurrent renewal cannot be overwritten by stale scheduler
+selection.
 
 ### TradingView rejects year-9999 expiration dates
 
@@ -79,7 +110,7 @@ code pointer.
 
 **Symptom:** a retry row for a misspelled TradingView nickname sits PENDING forever, or an admin grant returns 503.
 **Root cause:** "user not found" cannot be fixed by waiting — retrying is noise; swallowing it hides it from the operator.
-**Fix:** `TradingViewUserNotFoundException extends DataValidationException` → ignore-listed from retries and mapped to HTTP 400 for admin/user callers. The async payment path can't 400 anyone: it marks the sub GRANTED (customer paid) and enqueues a DEAD retry row so the admin TV-retry page shows "action required" (`listener/SubscriptionChangeStatusListener.java:65-74`). Commit `8db6481`.
+**Fix:** `TradingViewUserNotFoundException extends DataValidationException` → ignore-listed from retries and mapped to HTTP 400 for admin/user callers. The async payment path can't 400 anyone: it marks the sub GRANTED (customer paid) and converts its staged PENDING command to DEAD so the admin TV-retry page shows "action required". Commit `8db6481`, command-slot hardening in PR #37.
 
 ## Subscriptions & Stripe lifecycle
 
@@ -94,6 +125,16 @@ code pointer.
 **Symptom:** monthly renewals drift longer and longer; occasionally a single payment adds two months at once.
 **Root cause (a):** renewal expiry was computed as `old_expiredAt + 2 grace days + 30` — the +2 "payment grace" compounded every cycle (+1 month after ~15 renewals). **(b):** CryptoCloud retries postbacks; two concurrent webhooks both read the order as PENDING and both extended the sub.
 **Fix (a):** Stripe renewals mirror `CURRENT_PERIOD_END` exactly; non-Stripe renewals extend by exact plan duration, no hidden grace (`SubscriptionService.extendExistingSubscription`, lines 353–361). **(b):** `OrderService.processSuccessfulPayment` fetches the order via `findByIdForUpdate` — `@Lock(PESSIMISTIC_WRITE)` (`repository/OrderRepository.java:17-19`, `OrderService.java:117`); the loser of the race sees the PAID order and exits via the idempotency guard.
+
+### Expired trial pulled a new paid subscription backward
+
+**Symptom:** a current payment creates an already-expired paid subscription and
+the next hourly run moves it straight to grace (order #997, 2026-08-19).
+**Root cause:** trial conversion unconditionally used the old trial expiry as
+the duration base; active renewal did the same for any stale paid row.
+**Fix:** non-Stripe purchases use `max(now UTC, existing expiredAt)` before
+adding plan duration. Payment handling locks both the order and user so two
+different callbacks cannot extend from the same stale subscription state.
 
 ### Stripe lifecycle webhooks updated the DB but not TradingView
 

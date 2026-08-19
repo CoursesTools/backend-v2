@@ -49,17 +49,15 @@ ssh ct-backend 'docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Ports}}"'
 | Service | Container | Port | Notes |
 |---|---|---|---|
 | backend | `backend` | 8080 (API, context path `/api`), 8081 (actuator) | image `ghcr.io/coursestools/backend:latest` (docker-build.yml:51); ports per application.yml:44-47 + configs/actuator.yml:22 |
-| postgres | `postgres` | 5432 (in-network; `POSTGRES_HOST=postgres`) | postgres:16-alpine in the dev compose (docker-compose.yml:2-13); dev maps host **5433**→5432 |
+| PostgreSQL | external from current prod compose | from `POSTGRES_*` env | As verified 2026-08-19, prod `docker compose config --services` and `docker ps` contain no postgres service/container. Do not rely on the old `docker exec postgres` recipe. |
 | redis | `redis` | 6379 (in-network) | `requirepass` from `REDIS_PASSWORD` (docker-compose.yml:24) |
 | frontend | `frontend` | behind caddy | deployed separately — not from this repo's pipeline |
 | caddy | `caddy` | 80/443 | reverse proxy + TLS for frontend/backend |
 | plausible | `plausible` | — | analytics, shared service — do not touch |
 | pixel-canvas | `pixel-canvas` | — | unrelated co-located app — do not touch |
 
-Prod service list is from operator notes + the `~/.ssh/config` comment;
-this session could not run `docker ps` on the box (SSH read was
-permission-gated). Confirm with the command above before relying on exact
-names beyond `backend`/`postgres`/`redis`.
+Prod service list was rechecked read-only on 2026-08-19. Confirm again before
+operations because shared services and database topology can change.
 
 ## Prod command form
 
@@ -79,14 +77,11 @@ Only ever `pull`/`up -d`/`restart` the **backend** service by name. Never
 
 ## Database access
 
-```sh
-ssh ct-backend 'docker exec -it postgres psql -U postgres coursestools'
-```
-
-DB name `coursestools`, user `postgres` — from `POSTGRES_*` in
-`backend-v2/.env:1-5` (prod values live in `/root/coursestools/.env`).
-Postgres is not exposed publicly; go through the container. **Credentials:
-locations above are the source of truth — never inline the values.**
+Prod currently has no PostgreSQL container or psql client in the backend
+image. Connection values remain in the backend container/server environment,
+but must never be echoed into logs or transcripts. A secure operator-approved
+read-only client/tunnel procedure is still needed; the old
+`docker exec postgres psql ...` command fails with `No such container`.
 
 Local dev: `docker compose up` in the repo gives postgres on host port
 **5433** (docker-compose.yml:13).
@@ -139,7 +134,8 @@ CryptoCloud, Payeer, TV access bot `http://45.141.184.24:4320`
 ## Backups
 
 TODO(operator): no backup job is visible from the repo. Postgres data lives
-in the `postgres_data` docker volume; document dump schedule/destination.
+in an external/undocumented database location; document the provider and dump
+schedule/destination without copying credentials.
 
 ## Things to NEVER touch on this box
 

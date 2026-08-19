@@ -1,6 +1,7 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
+import com.winworld.coursestools.dto.admin.DirectAccessSubmissionDto;
 import com.winworld.coursestools.dto.subscription.PlanSubscriptionCount;
 import com.winworld.coursestools.dto.subscription.SubscriptionActivateDto;
 import com.winworld.coursestools.dto.subscription.TierPlanSubscriptionCount;
@@ -20,9 +21,14 @@ import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionTier;
 import com.winworld.coursestools.enums.SubscriptionStatus;
+import com.winworld.coursestools.enums.SubscriptionEventType;
+import com.winworld.coursestools.enums.TradingViewExpirationPolicy;
+import com.winworld.coursestools.enums.TradingViewDeliveryStatus;
+import com.winworld.coursestools.event.SubscriptionChangeStatusEvent;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
+import com.winworld.coursestools.exception.exceptions.TradingViewUserNotFoundException;
 import com.winworld.coursestools.mapper.SubscriptionMapper;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.TrialActivationRepository;
@@ -30,6 +36,7 @@ import com.winworld.coursestools.repository.subscription.SubscriptionPlanReposit
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
+import com.winworld.coursestools.service.external.TradingViewRetryService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
@@ -66,6 +73,8 @@ import static com.winworld.coursestools.enums.SubscriptionStatus.GRACE_PERIOD;
 import static com.winworld.coursestools.enums.SubscriptionStatus.GRANTED;
 import static com.winworld.coursestools.enums.SubscriptionStatus.PENDING;
 import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.CUSTOMER_PAYMENT_BUFFER;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.EXACT;
 
 @Service
 @RequiredArgsConstructor
@@ -83,6 +92,7 @@ public class SubscriptionService {
     private final UserSubscriptionService userSubscriptionService;
     private final StripePaymentService stripePaymentService;
     private final ActivatingSubscriptionService activatingSubscriptionService;
+    private final TradingViewRetryService tradingViewRetryService;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final TrialActivationRepository trialActivationRepository;
     private final SubscriptionDeactivationService subscriptionDeactivationService;
@@ -147,7 +157,7 @@ public class SubscriptionService {
 
         var savedUserSubscription = userSubscriptionService.save(userSubscription);
         trialActivationRepository.createTrialActivation(userId, tradingViewName);
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL_CREATED, savedUserSubscription));
+        publishSubscriptionEvent(user, TRIAL_CREATED, savedUserSubscription, EXACT);
         return userMapper.toDto(savedUserSubscription);
 
     }
@@ -159,8 +169,9 @@ public class SubscriptionService {
 
         usersSubscriptions.forEach(userSubscription -> {
             try {
-                subscriptionDeactivationService.deactivateSingleSubscription(userSubscription.getId());
-                userIds.add(userSubscription.getUser().getId());
+                if (subscriptionDeactivationService.deactivateSingleSubscription(userSubscription.getId())) {
+                    userIds.add(userSubscription.getUser().getId());
+                }
             } catch (Exception e) {
                 log.error("Failed to deactivate subscription {} for user {}",
                     userSubscription.getId(), userSubscription.getUser().getId(), e);
@@ -176,9 +187,12 @@ public class SubscriptionService {
         usersSubscriptions.forEach(userSubscription -> {
             userSubscription.setStatus(TERMINATED);
             log.info("User subscription {} trial expired", userSubscription.getId());
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), TRIAL_ENDED, userSubscription));
+            eventPublisher.publishEvent(
+                    subscriptionMapper.toEvent(userSubscription.getUser(), TRIAL_ENDED, userSubscription, EXACT));
         });
-        return usersSubscriptions.stream().map(UserSubscription::getId).collect(Collectors.toList());
+        return usersSubscriptions.stream()
+                .map(userSubscription -> userSubscription.getUser().getId())
+                .collect(Collectors.toList());
     }
 
     public void deactivateExpiredGracePeriodSubscriptions() {
@@ -192,17 +206,28 @@ public class SubscriptionService {
             User user,
             Map<String, Object> paymentProviderData
     ) {
+        updateUserSubscription(userSubscription, order, user, paymentProviderData, CUSTOMER_PAYMENT_BUFFER);
+    }
+
+    private void updateUserSubscription(
+            UserSubscription userSubscription,
+            Order order,
+            User user,
+            Map<String, Object> paymentProviderData,
+            TradingViewExpirationPolicy expirationPolicy
+    ) {
         if (userSubscription == null || userSubscription.getIsTrial()) {
             var newUserSubscription = createNewSubscription(userSubscription, order, user, paymentProviderData);
-            eventPublisher.publishEvent(
-                    subscriptionMapper.toEvent(newUserSubscription.getUser(), CREATED, newUserSubscription)
-            );
+            publishSubscriptionEvent(
+                    newUserSubscription.getUser(), CREATED, newUserSubscription, expirationPolicy);
         } else if (userSubscription.getStatus().equals(GRACE_PERIOD)) {
             updateGracePeriodSubscription(userSubscription, order, paymentProviderData);
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), RESTORED, userSubscription));
+            publishSubscriptionEvent(
+                    userSubscription.getUser(), RESTORED, userSubscription, expirationPolicy);
         } else {
             extendExistingSubscription(userSubscription, order, paymentProviderData);
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(userSubscription.getUser(), EXTENDED, userSubscription));
+            publishSubscriptionEvent(
+                    userSubscription.getUser(), EXTENDED, userSubscription, expirationPolicy);
         }
     }
 
@@ -227,7 +252,7 @@ public class SubscriptionService {
         syncStripeLifecycleMetadata(subscription, dto);
         userSubscriptionService.save(subscription);
         if (dto.getCurrentPeriodEnd() != null && !subscription.getExpiredAt().equals(previousExpiredAt)) {
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(subscription.getUser(), EXTENDED, subscription));
+            publishSubscriptionEvent(subscription.getUser(), EXTENDED, subscription, EXACT);
         }
         log.info("Stripe subscription {} synced to local subscription {}", dto.getSubscriptionId(), subscription.getId());
     }
@@ -262,7 +287,7 @@ public class SubscriptionService {
         }
         subscription.setStatus(TERMINATED);
         userSubscriptionService.save(subscription);
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, subscription));
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, subscription, EXACT));
         log.warn("Stripe subscription {} deleted; local subscription {} terminated",
                 dto.getSubscriptionId(), subscription.getId());
     }
@@ -304,7 +329,7 @@ public class SubscriptionService {
         SubscriptionPlan subscriptionPlan = order.getPlan();
 
         if (currentSubscription != null && currentSubscription.getIsTrial()) {
-            baseDate = currentSubscription.getExpiredAt();
+            baseDate = laterOf(getNow(), currentSubscription.getExpiredAt());
             currentSubscription.setStatus(TERMINATED);
         } else {
             baseDate = getNow();
@@ -330,7 +355,8 @@ public class SubscriptionService {
             Map<String, Object> paymentProviderData
     ) {
         var plan = order.getPlan();
-        LocalDateTime expirationDate = calculateExpirationDate(getNow(), plan, paymentProviderData);
+        LocalDateTime expirationDate = calculateExpirationDate(
+                laterOf(getNow(), subscription.getExpiredAt()), plan, paymentProviderData);
 
         if (STRIPE.equals(subscription.getPaymentMethod()) && !STRIPE.equals(order.getPaymentMethod())) {
             stripePaymentService.cancelSubscription(subscription);
@@ -357,7 +383,7 @@ public class SubscriptionService {
             Long periodEnd = (Long) paymentProviderData.get(CURRENT_PERIOD_END);
             expirationDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEnd), ZoneOffset.UTC);
         } else {
-            expirationDate = subscription.getExpiredAt().plusDays(plan.getDurationDays());
+            expirationDate = laterOf(getNow(), subscription.getExpiredAt()).plusDays(plan.getDurationDays());
         }
 
         if (subscription.getPaymentMethod().equals(STRIPE) && !order.getPaymentMethod().equals(STRIPE)) {
@@ -387,10 +413,10 @@ public class SubscriptionService {
         newSubscription.setExpiredAt(LIFETIME_EXPIRY);
 
         user.addSubscription(newSubscription);
-        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
+        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.exactGrant(
                 user.getEmail(), plan.getTier(),
                 user.getSocial().getTradingViewName(), newSubscription.getExpiredAt(), true);
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
+        submitTradingViewActivation(user.getId(), dto);
         newSubscription.setStatus(SubscriptionStatus.GRANTED);
         return userSubscriptionService.save(newSubscription);
     }
@@ -409,10 +435,10 @@ public class SubscriptionService {
         // lapsing a paying customer at period end. Safe: cancelSubscription never throws (it
         // logs StripeException), and the setters below can't fail, so nothing after the TV call
         // can half-apply.
-        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
+        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.exactGrant(
                 user.getEmail(), lifetimePlan.getTier(),
                 user.getSocial().getTradingViewName(), LIFETIME_EXPIRY, true);
-        activatingSubscriptionService.activateTradingViewAccess(user.getId(), dto);
+        submitTradingViewActivation(user.getId(), dto);
 
         if (STRIPE.equals(subscription.getPaymentMethod())) {
             stripePaymentService.cancelSubscription(subscription);
@@ -470,7 +496,7 @@ public class SubscriptionService {
                 .status(OrderStatus.PAID)
                 .build();
 
-        updateUserSubscriptionAfterPayment(currentSub, syntheticOrder, user, null);
+        updateUserSubscription(currentSub, syntheticOrder, user, null, EXACT);
 
         // Re-read — updateUserSubscriptionAfterPayment may have created a new row when
         // currentSub was null or a trial.
@@ -496,7 +522,7 @@ public class SubscriptionService {
         currentSub.setStatus(PENDING);
         // expiredAt deliberately untouched.
         UserSubscription saved = userSubscriptionService.save(currentSub);
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+        publishSubscriptionEvent(user, EXTENDED, saved, EXACT);
         return saved;
     }
 
@@ -543,7 +569,7 @@ public class SubscriptionService {
                     .orElseThrow(() -> new EntityNotFoundException("Pro monthly plan not found"));
             current.setPlan(trialPlan);
             UserSubscription saved = userSubscriptionService.save(current);
-            eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+            publishSubscriptionEvent(user, EXTENDED, saved, EXACT);
             return saved;
         }
 
@@ -571,7 +597,7 @@ public class SubscriptionService {
             trialActivationRepository.createTrialActivation(user.getId(), tradingViewName);
         }
 
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, TRIAL_CREATED, saved));
+        publishSubscriptionEvent(user, TRIAL_CREATED, saved, EXACT);
         return saved;
     }
 
@@ -592,14 +618,75 @@ public class SubscriptionService {
 
         current.setExpiredAt(expiredAt.atStartOfDay());
         UserSubscription saved = userSubscriptionService.save(current);
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, EXTENDED, saved));
+        publishSubscriptionEvent(user, EXTENDED, saved, EXACT);
         return saved;
+    }
+
+    /**
+     * Exceptional TradingView-only synchronization. The business subscription is
+     * read solely to inherit identity/tier/lifetime and is never changed.
+     */
+    @Transactional
+    public DirectAccessSubmissionDto directExtendTradingViewAccess(
+            User user,
+            LocalDate expiredAt,
+            int actorUserId
+    ) {
+        SubscriptionType subscriptionType = getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        UserSubscription current = userSubscriptionService
+                .getUserSubBySubTypeIdNotTerminated(user.getId(), subscriptionType.getId())
+                .orElseThrow(() -> new DataValidationException(
+                        "Direct Extend requires an existing non-terminated subscription for user '"
+                                + user.getSocial().getTradingViewName() + "'"));
+        LocalDateTime expiration = expiredAt.atStartOfDay();
+        ActivateTradingViewAccessDto payload = ActivateTradingViewAccessDto.exactGrant(
+                user.getEmail(),
+                current.getPlan().getTier(),
+                user.getSocial().getTradingViewName(),
+                expiration,
+                current.getPlan().getName() == Plan.LIFETIME
+        );
+
+        try {
+            var deliveryStatus = submitTradingViewActivation(user.getId(), payload);
+            log.info(
+                    "Admin Direct Extend submitted: actorUserId={} targetUserId={} subscriptionId={} "
+                            + "tv={} expiration={} outcome={}",
+                    actorUserId,
+                    user.getId(),
+                    current.getId(),
+                    user.getSocial().getTradingViewName(),
+                    expiration,
+                    deliveryStatus
+            );
+            return DirectAccessSubmissionDto.builder()
+                    .subscriptionId(current.getId())
+                    .tradingViewName(user.getSocial().getTradingViewName())
+                    .expiration(expiration)
+                    .deliveryStatus(deliveryStatus)
+                    .build();
+        } catch (TradingViewUserNotFoundException e) {
+            log.warn(
+                    "Admin Direct Extend rejected: actorUserId={} targetUserId={} subscriptionId={} "
+                            + "tv={} expiration={} outcome=NICKNAME_NOT_FOUND",
+                    actorUserId,
+                    user.getId(),
+                    current.getId(),
+                    user.getSocial().getTradingViewName(),
+                    expiration
+            );
+            throw e;
+        }
     }
 
     // ------------------------------------------------------------------------
 
     private LocalDateTime getNow() {
         return LocalDateTime.now(ZoneOffset.UTC);
+    }
+
+    private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
+        return first.isAfter(second) ? first : second;
     }
 
     private LocalDateTime calculateExpirationDate(
@@ -627,12 +714,42 @@ public class SubscriptionService {
         ensureNotStripeManaged(userSubscription);
         var expiration = dto.getExpiration().atStartOfDay();
         userSubscription.setExpiredAt(expiration);
-        activatingSubscriptionService.activateTradingViewAccess(
+        submitTradingViewActivation(
                 user.getId(),
-                ActivateTradingViewAccessDto.grant(user.getEmail(), userSubscription.getPlan().getTier(),
-                        dto.getUsername(), expiration, userSubscription.getPlan().getName() == Plan.LIFETIME)
-        );
+                ActivateTradingViewAccessDto.exactGrant(user.getEmail(), userSubscription.getPlan().getTier(),
+                        dto.getUsername(), expiration, userSubscription.getPlan().getName() == Plan.LIFETIME));
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
+    }
+
+    private void publishSubscriptionEvent(
+            User user,
+            SubscriptionEventType eventType,
+            UserSubscription subscription,
+            TradingViewExpirationPolicy expirationPolicy
+    ) {
+        SubscriptionChangeStatusEvent event = subscriptionMapper.toEvent(
+                user, eventType, subscription, expirationPolicy);
+        if (eventType == CREATED || eventType == TRIAL_CREATED
+                || eventType == EXTENDED || eventType == RESTORED) {
+            event.setActivationCommandId(tradingViewRetryService.stageActivation(
+                    user.getId(), ActivateTradingViewAccessDto.fromSubscriptionEvent(event)));
+        }
+        eventPublisher.publishEvent(event);
+    }
+
+    private TradingViewDeliveryStatus submitTradingViewActivation(
+            Integer userId,
+            ActivateTradingViewAccessDto payload
+    ) {
+        String commandId = tradingViewRetryService.stageActivation(userId, payload);
+        var staged = tradingViewRetryService.lockCurrentActivation(userId, commandId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "TradingView activation command was superseded before synchronous delivery"));
+        TradingViewDeliveryStatus status = activatingSubscriptionService.activateTradingViewAccess(userId, payload);
+        if (status == TradingViewDeliveryStatus.DELIVERED) {
+            tradingViewRetryService.completeActivation(staged);
+        }
+        return status;
     }
 
     private void ensureNotStripeManaged(UserSubscription userSubscription) {

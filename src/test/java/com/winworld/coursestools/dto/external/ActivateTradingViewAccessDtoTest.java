@@ -15,27 +15,32 @@ class ActivateTradingViewAccessDtoTest {
     private final ObjectMapper mapper = new ApplicationConfiguration().objectMapper();
 
     @Test
-    void grant_addsOneDayBuffer_forNonLifetime() {
+    void customerPaymentGrant_addsOneDayBuffer_forNonLifetime() {
         LocalDateTime exp = LocalDateTime.of(2026, 8, 11, 15, 41, 38);
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", exp, false);
+        var dto = ActivateTradingViewAccessDto.customerPaymentGrant(
+                "e@x.com", SubscriptionTier.PRO, "nick", exp, false);
         assertThat(dto.getExpiration()).isEqualTo(exp.plusDays(1));
     }
 
     @Test
-    void grant_skipsBuffer_forLifetime() {
+    void customerPaymentGrant_skipsBuffer_forLifetime() {
         LocalDateTime exp = LocalDateTime.of(2100, 12, 31, 23, 59, 59);
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", exp, true);
+        var dto = ActivateTradingViewAccessDto.customerPaymentGrant(
+                "e@x.com", SubscriptionTier.PRO, "nick", exp, true);
         assertThat(dto.getExpiration()).isEqualTo(exp);
     }
 
     @Test
-    void bufferBotExpiration_isNullSafe() {
-        assertThat(ActivateTradingViewAccessDto.bufferBotExpiration(null, false)).isNull();
+    void exactGrant_doesNotBufferNonPaymentExpiration() {
+        LocalDateTime exp = LocalDateTime.of(2026, 8, 11, 15, 41, 38);
+        var dto = ActivateTradingViewAccessDto.exactGrant(
+                "e@x.com", SubscriptionTier.PRO, "nick", exp, false);
+        assertThat(dto.getExpiration()).isEqualTo(exp);
     }
 
     @Test
     void wireContract_keysUnchanged() throws Exception {
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick",
+        var dto = ActivateTradingViewAccessDto.exactGrant("e@x.com", SubscriptionTier.PRO, "nick",
                 LocalDateTime.of(2026, 8, 11, 15, 41, 38), false);
         String json = mapper.writeValueAsString(dto);
         assertThat(json).contains("\"tv\":\"nick\"");     // @JsonProperty("tv")
@@ -49,10 +54,12 @@ class ActivateTradingViewAccessDtoTest {
         // later deserializes it back; that round-trip must be lossless for now()-derived
         // (fractional-second) expiries, which are the common case for trials.
         LocalDateTime fractional = LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000);
-        var dto = ActivateTradingViewAccessDto.grant("e@x.com", SubscriptionTier.PRO, "nick", fractional, true);
+        var dto = ActivateTradingViewAccessDto.customerPaymentGrant(
+                "e@x.com", SubscriptionTier.PRO, "nick", fractional, false);
         String json = mapper.writeValueAsString(dto);
         var back = mapper.readValue(json, ActivateTradingViewAccessDto.class);
         assertThat(back.getExpiration()).isEqualTo(dto.getExpiration());
+        assertThat(back.getExpiration()).isEqualTo(fractional.plusDays(1));
         assertThat(back.getTradingViewName()).isEqualTo("nick");
     }
 

@@ -13,7 +13,7 @@ The urgent TV-bot fixes shipped across two PRs: **PR #33** (`ea8ec83`, "+1 day T
 How TV access is granted today (all verified against current code):
 
 - The bot payload's `expiration` is a **naive `LocalDateTime`** serialized as `ISO_LOCAL_DATE_TIME` — no zone/offset — by the app-wide ObjectMapper (`dto/external/ActivateTradingViewAccessDto.java:37-43`, `config/ApplicationConfiguration.java:42-44`).
-- Every non-lifetime grant is padded by `BOT_EXPIRY_BUFFER_DAYS = 1` in the `grant()` factory (`ActivateTradingViewAccessDto.java:31,52-69`). There is **no bot-revoke channel**, so the pad also gives trials/canceled subs up to 1 extra day (accepted trade-off, documented at `ActivateTradingViewAccessDto.java:20-30`).
+- Successful customer payments are padded by `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS = 1` in `customerPaymentGrant()`; every non-payment flow is exact (DEC-002). There is still **no bot-revoke channel**.
 - Bot endpoints (`.env:25-27`): activate `http://45.141.184.24:4320/open`, rename `/username_changer`, withdrawal `/withdrawal`.
 - Activation is async: `SubscriptionChangeStatusListener.activateUserSubscription` (`@TransactionalEventListener @Async`, REQUIRES_NEW) fires on CREATED / TRIAL_CREATED / EXTENDED / RESTORED, calls the bot, then flips the sub from `PENDING` to `GRANTED` (`listener/SubscriptionChangeStatusListener.java:31-36,50-78`).
 - Transient bot failures fall back to a durable retry queue (`trading_view_retry_jobs`, polled every minute per `configs/scheduler.yml:7`; 10 attempts, backoff up to 86400s per `application.yml:106-109`).
@@ -29,8 +29,8 @@ How TV access is granted today (all verified against current code):
 ### Item 1 — unambiguous timestamp to the bot (needs bot-owner coordination)
 
 - **Problem:** `expiration` is offset-less. Backend writes UTC; the bot runs on Moscow-time infrastructure and can interpret the value as local time, cutting access up to ~3h early (`ActivateTradingViewAccessDto.java:20-30`). The +1d pad exists largely to mask this.
-- **Why it matters:** the pad is a blunt instrument — it protects paying users from early cuts but hands every trial/canceled sub an extra free day (no revoke channel). An unambiguous wire format lets the pad shrink from 1 day to a few hours.
-- **Proposed fix:** agree a format with the bot owner — epoch seconds or ISO-8601 with explicit offset (`...Z`). Backend side: change the field type/serializer on `ActivateTradingViewAccessDto` and `ChangeTradingViewNameDto` only (keep the app-wide ObjectMapper untouched — it serves API responses too). Then reduce `BOT_EXPIRY_BUFFER_DAYS` to an hours-scale pad in one constant.
+- **Why it matters:** the payment-only pad is still a full day. An unambiguous wire format lets it shrink to a few hours without risking paid access.
+- **Proposed fix:** agree a format with the bot owner — epoch seconds or ISO-8601 with explicit offset (`...Z`). Backend side: change the field type/serializer on both TV DTOs only (keep the app-wide ObjectMapper untouched). Then reduce `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS` to an hours-scale pad.
 - **Risk:** (a) coordinated deploy — the bot must accept the new format before backend ships; (b) stored retry payloads in `trading_view_retry_jobs.payload` replay the OLD format, so deserialization must stay backward-compatible (a strict `@JsonFormat` was already tried and reverted before merge for exactly this reason — see `ActivateTradingViewAccessDto.java:37-42` and the `docs/reference/gotchas.md` entry); (c) shrinking the pad before confirming the bot's parsing = early cutoffs for paying users.
 
 ### Item 4 — Stripe dunning window vs bot cutoff (decision needed)
@@ -71,7 +71,7 @@ How TV access is granted today (all verified against current code):
 ### Phase C — Item 1: unambiguous timestamp (blocked on bot owner)
 - [ ] Agree wire format + rollout order with bot owner (bot at 45.141.184.24:4320)
 - [ ] DTO-local serializer change, backward-compatible deserialization for stored retry payloads
-- [ ] Shrink `BOT_EXPIRY_BUFFER_DAYS` only after prod verification of bot parsing
+- [ ] Shrink `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS` only after prod verification of bot parsing
 - Verify: prod log line `TV activation succeeded ... expiration=` shows new format; replay one legacy retry row
 
 ### Phase D — withdrawal retry cleanup (small, independent)

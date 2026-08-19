@@ -13,11 +13,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_START;
 import static com.winworld.coursestools.enums.SubscriptionStatus.GRACE_PERIOD;
 import static com.winworld.coursestools.enums.SubscriptionStatus.TERMINATED;
+import static com.winworld.coursestools.enums.SubscriptionStatus.GRANTED;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.EXACT;
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +33,14 @@ public class SubscriptionDeactivationService {
     private final UserSubscriptionRepository userSubscriptionRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void deactivateSingleSubscription(int userSubscriptionId) {
+    public boolean deactivateSingleSubscription(int userSubscriptionId) {
         UserSubscription userSubscription = getUserSubscriptionForUpdate(userSubscriptionId);
+        if (Boolean.TRUE.equals(userSubscription.getIsTrial())
+                || userSubscription.getStatus() != GRANTED
+                || userSubscription.getExpiredAt().isAfter(LocalDateTime.now(ZoneOffset.UTC))) {
+            log.info("Skipping stale subscription-expiry candidate {} after locked revalidation", userSubscriptionId);
+            return false;
+        }
         userSubscription.setStatus(GRACE_PERIOD);
         User user = userSubscription.getUser();
         Referral referred = user.getReferred();
@@ -38,8 +49,9 @@ public class SubscriptionDeactivationService {
         }
         logSkippedStripeCancellation(userSubscription);
         log.info("User {} subscription expired", user.getId());
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription));
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_START, userSubscription, EXACT));
         //TODO Сделать напоминание о 3 днях, 7 и т.д.
+        return true;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -64,7 +76,7 @@ public class SubscriptionDeactivationService {
                 userSubscription.getId(),
                 previousStatus
         );
-        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, userSubscription));
+        eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, userSubscription, EXACT));
     }
 
     private void logSkippedStripeCancellation(UserSubscription userSubscription) {
@@ -77,7 +89,7 @@ public class SubscriptionDeactivationService {
     }
 
     private UserSubscription getUserSubscriptionForUpdate(int userSubscriptionId) {
-        return userSubscriptionRepository.findByIdWithUserDetails(userSubscriptionId)
+        return userSubscriptionRepository.findByIdWithUserDetailsForUpdate(userSubscriptionId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "User subscription not found with id: " + userSubscriptionId
                 ));

@@ -43,7 +43,8 @@ Stack: Java 17, Spring Boot 3.2.4, Gradle Kotlin DSL (`build.gradle.kts`).
   `@NoArgsConstructor` as needed), e.g.
   `dto/external/ActivateTradingViewAccessDto.java:15-18`. Prefer static
   factory methods on DTOs when construction has business rules (the TV
-  bot DTOs' `grant()`/`rename()` factories apply the expiry buffer).
+  bot DTOs expose separate exact/payment factories so source policy is not
+  inferred).
 - **DTO-per-domain:** one package per domain under `dto/` (admin, alert,
   auth, code, external, news, order, partnership, payment, recovery,
   subscription, transaction, user). Entities never cross the API

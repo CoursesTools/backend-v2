@@ -23,7 +23,11 @@ role `ADMIN` required (`@PreAuthorize("hasRole('ADMIN')")` per endpoint;
   `GET /statistics/plans-purchased` — dashboard stats
   (`AdminController.java:48-69`).
 - `POST /access/classic`, `POST /access/custom` — grant classic / custom
-  (incl. lifetime) subscription access (`AdminController.java:71-81`).
+  (incl. lifetime) subscription access; both send exact TV expirations.
+- `POST /access/direct` — TV-only exceptional synchronization. Request:
+  `{tradingViewName, expiredAt}`; response:
+  `{subscriptionId, tradingViewName, expiration, deliveryStatus}` where status
+  is `DELIVERED|QUEUED`. It never updates the business subscription.
 - `PATCH /users/partnership/cashback`, `GET /users` (by email / TradingView
   name / partner code) (`AdminController.java:83-98`).
 - `POST /invoices/create` — custom Stripe one-time invoice
@@ -61,6 +65,8 @@ the OpenAPI schema and `AdminController` are authoritative.
   annotation (`controller/AdminController.java`).
 - Keep the OpenAPI schema accurate (springdoc generates it from controllers/
   DTOs); admin-web's client is generated from it verbatim.
+- Direct Extend success means submitted to TV (`DELIVERED` or durably
+  `QUEUED`), not that subscription data changed.
 - Backend admin domain docs: `../architecture/admin.md`.
 
 ## Sending work to their agents

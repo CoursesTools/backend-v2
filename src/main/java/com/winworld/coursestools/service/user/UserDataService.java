@@ -62,6 +62,13 @@ public class UserDataService {
                 ));
     }
 
+    public User getUserByIdForUpdate(int id) {
+        return userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        String.format(ID_NOT_FOUND, id)
+                ));
+    }
+
     public User getUserByPartnerCode(String partnerCode) {
         return userRepository.findUserByPartnerCode(partnerCode)
                 .orElseThrow(() -> new EntityNotFoundException(

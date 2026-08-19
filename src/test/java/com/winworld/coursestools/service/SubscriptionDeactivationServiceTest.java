@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,6 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.EXACT;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @ExtendWith(MockitoExtension.class)
 class SubscriptionDeactivationServiceTest {
@@ -65,8 +69,8 @@ class SubscriptionDeactivationServiceTest {
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
 
-        when(userSubscriptionRepository.findByIdWithUserDetails(42)).thenReturn(Optional.of(userSubscription));
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, userSubscription))
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(42)).thenReturn(Optional.of(userSubscription));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, userSubscription, EXACT))
                 .thenReturn(event);
 
         subscriptionDeactivationService.terminatePastGracePeriodSubscription(42);
@@ -88,20 +92,52 @@ class SubscriptionDeactivationServiceTest {
                 .paymentMethod(PaymentMethod.STRIPE)
                 .status(SubscriptionStatus.GRANTED)
                 .isTrial(false)
-                .expiredAt(LocalDateTime.now().minusMinutes(1))
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1))
                 .paymentProviderData(new java.util.HashMap<>())
                 .build();
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
 
-        when(userSubscriptionRepository.findByIdWithUserDetails(84)).thenReturn(Optional.of(userSubscription));
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_START, userSubscription))
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(84)).thenReturn(Optional.of(userSubscription));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_START, userSubscription, EXACT))
                 .thenReturn(event);
 
-        subscriptionDeactivationService.deactivateSingleSubscription(84);
+        assertTrue(subscriptionDeactivationService.deactivateSingleSubscription(84));
 
         assertEquals(SubscriptionStatus.GRACE_PERIOD, userSubscription.getStatus());
         verify(stripePaymentService, never()).cancelSubscription(userSubscription);
         verify(eventPublisher).publishEvent(event);
+    }
+
+    @Test
+    void deactivateSingleSubscription_skipsTrialEvenIfPassedAsStaleCandidate() {
+        UserSubscription trial = UserSubscription.builder()
+                .id(85)
+                .isTrial(true)
+                .status(SubscriptionStatus.GRANTED)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1))
+                .build();
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(85)).thenReturn(Optional.of(trial));
+
+        assertFalse(subscriptionDeactivationService.deactivateSingleSubscription(85));
+
+        assertEquals(SubscriptionStatus.GRANTED, trial.getStatus());
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deactivateSingleSubscription_skipsRenewedCandidateAfterLockedRevalidation() {
+        UserSubscription renewed = UserSubscription.builder()
+                .id(86)
+                .isTrial(false)
+                .status(SubscriptionStatus.GRANTED)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).plusDays(30))
+                .build();
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(86)).thenReturn(Optional.of(renewed));
+
+        assertFalse(subscriptionDeactivationService.deactivateSingleSubscription(86));
+
+        assertEquals(SubscriptionStatus.GRANTED, renewed.getStatus());
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 }

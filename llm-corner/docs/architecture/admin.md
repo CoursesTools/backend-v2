@@ -27,6 +27,7 @@ API context path `/api` is set in `src/main/resources/application.yml:46`.
 | `GET /statistics/plans-purchased?start&end` | `AdminService.getPurchasedPlansByTier` | Tier x plan counts of PURCHASE transactions whose order is PAID, in the date window (`repository/user/UserTransactionRepository.java:48-59`). |
 | `POST /access/classic` | `AdminService.grantClassicAccess` | Grant by plan: MONTH/YEAR/LIFETIME/TRIAL (see below). |
 | `POST /access/custom` | `AdminService.updateCustomAccess` | Pure `expiredAt` bump on an existing sub. |
+| `POST /access/direct` | `AdminService.directExtendAccess` | Submit an exact TV bot expiration without changing business DB records. |
 | `PATCH /users/partnership/cashback` | `AdminService.updatePartnershipCashback` | Set `customCashback1/2` (0-100) on the user's partnership row. |
 | `GET /users?userId\|tradingViewName\|email\|partnerCode` | `AdminService.getUserInfo` | Single-user lookup (see below). |
 | `POST /invoices/create` | `AdminInvoiceService.createCustomInvoice` | Custom-price Stripe checkout link. |
@@ -79,6 +80,26 @@ both rules enforced by `@AssertTrue` validators).
 400 if no active sub or if the sub is Stripe-managed
 (`ensureNotStripeManaged`, `service/SubscriptionService.java:630-636`).
 Publishes EXTENDED (`adminCustomUpdateExpiry`, lines 576-589).
+
+**Direct Extend** (`POST /access/direct`,
+`dto/admin/DirectAccessRequestDto.java`): body `tradingViewName` + `@Future
+expiredAt`. It requires an existing non-terminated subscription and inherits
+email, tier, and lifetime from that row. It sends the exact selected date to
+the TV bot without saving the subscription or publishing an event. Response:
+
+```json
+{
+  "subscriptionId": 4968,
+  "tradingViewName": "aryansn484",
+  "expiration": "2026-09-19T00:00:00",
+  "deliveryStatus": "DELIVERED"
+}
+```
+
+`deliveryStatus` is `DELIVERED` after bot 2xx or `QUEUED` after durable
+transient-failure enqueue. Both mean submitted, never "database updated".
+Missing subscription and permanent nickname 404 are friendly 400 responses.
+The audit log includes actor id, target user/subscription, date, and outcome.
 
 **Event follow-through:** EXTENDED / TRIAL_CREATED are consumed by
 `listener/SubscriptionChangeStatusListener.java` (lines 33-34), which pushes
@@ -155,6 +176,8 @@ statuses: PENDING, DEAD.
 
 - Admin grants write no transaction rows — revenue stats
   (`/statistics`, `/statistics/plans-purchased`) are unaffected by them.
+- Classic, Custom, Direct Extend, and trial grants send exact TV expirations;
+  the one-day TV buffer is reserved for actual customer payments (DEC-002).
 - All `LocalDate` expiry inputs become `atStartOfDay()` (midnight UTC —
   the app computes time in UTC, `service/SubscriptionService.java:593-595`).
 - `ensureNotStripeManaged` guards `/access/custom` and

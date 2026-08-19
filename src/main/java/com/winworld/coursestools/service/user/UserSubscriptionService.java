@@ -42,6 +42,12 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new EntityNotFoundException("User subscription not found with id: " + userSubscriptionId));
     }
 
+    public UserSubscription getUserSubByIdForUpdate(int userSubscriptionId) {
+        return userSubscriptionRepository.findByIdWithUserDetailsForUpdate(userSubscriptionId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "User subscription not found with id: " + userSubscriptionId));
+    }
+
     public boolean hasEverHadSubscriptionOfType(int userId, int subscriptionTypeId) {
         return userSubscriptionRepository.hasEverHadSubscriptionOfType(subscriptionTypeId, userId);
     }

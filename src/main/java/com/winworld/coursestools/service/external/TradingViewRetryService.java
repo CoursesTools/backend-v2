@@ -21,6 +21,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -46,6 +48,47 @@ public class TradingViewRetryService {
 
     @Value("${tradingview.retry.batch-size:20}")
     private int batchSize;
+
+    /**
+     * Persist the latest desired ACTIVATE command before its transaction commits.
+     * The partial unique index makes the PENDING row a per-user outbox slot: a
+     * newer command atomically replaces an older one, while a locked delivery
+     * serializes the remote side effect.
+     */
+    @Transactional(propagation = Propagation.REQUIRED)
+    public String stageActivation(Integer userId, ActivateTradingViewAccessDto dto) {
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(dto);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize TradingView activation command", e);
+        }
+
+        String commandId = UUID.randomUUID().toString();
+        repository.stagePendingActivation(userId, payload, commandId, LocalDateTime.now());
+        repository.deleteByUserIdAndTypeAndStatus(
+                userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.DEAD);
+        return commandId;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public Optional<TradingViewRetryJob> lockCurrentActivation(Integer userId, String commandId) {
+        return repository.findByUserIdAndTypeAndStatusForUpdate(
+                        userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.PENDING)
+                .filter(job -> commandId != null && commandId.equals(job.getCommandId()));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void completeActivation(TradingViewRetryJob job) {
+        repository.delete(job);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void markActivationDead(TradingViewRetryJob job, String reason) {
+        job.setStatus(TradingViewRetryJobStatus.DEAD);
+        job.setLastError(truncate(reason));
+        repository.save(job);
+    }
 
     /**
      * Enqueue a retry in the caller's transaction (outbox pattern): if the
