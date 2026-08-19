@@ -56,8 +56,9 @@ high-level steps:
 | Slug | Default role | Operating mode | Notes |
 |---|---|---|---|
 | `claude` | chief | default (`../protocols/` as written) | Claude Code sessions — usually the session the operator talks to |
-| `codex` | worker / auditor | default | Codex sessions; pre-llm-corner audit history lives in `../history/audits/` (e.g. `2026-04-11-codex-payment-webhook-audit.md`) |
+| `codex` | chief auditor / quality gatekeeper | auditor-first (`codex/operating-mode.md`) | Codex reviews and repairs other agents' work, guards production readiness, and escalates material risk; pre-llm-corner audit history lives in `../history/audits/` |
 
-Workspace directories for both agents still need to be instantiated
-from `_template/` (see `../protocols/new-agent.md`) — tracked in
-`../active/backlog.md`.
+Both workspaces are instantiated from `_template/` and ready for
+file-based messaging. Their operating modes preserve all global
+protocols; agent-specific files add responsibilities but never weaken
+project rules.

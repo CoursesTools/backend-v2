@@ -41,6 +41,7 @@ depth. Never page through a monthly file looking for one change.
 
 | File | Period |
 |---|---|
+| `2026-08.md` | 2026-08 |
 | `2026-07.md` | 2026-07 — first month (doc-system bootstrap); includes a pre-changelog backfill section covering notable 2026-04 … 2026-05 commits |
 
 New month → create the file, add the row here (part of the

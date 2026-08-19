@@ -6,6 +6,8 @@ This file is the auto-loaded shim for Codex / Cursor / any non-Claude agent (Cla
 
 **Gain project context from `llm-corner/README.md`** — the single router for everything: boot sequence, conventions, contracts, architecture, servers, protocols, current state. Do this before any task. Your agent-specific material: `llm-corner/agents/<you>/`.
 
+Codex's personal workspace is `llm-corner/agents/codex/`; read its inbox during the router's boot sequence.
+
 ## Hard invariants (apply even if you read nothing else)
 
 1. **Never commit or push automatically.** Pushing `master` auto-deploys the live payment backend (GitHub Actions → build image → `docker compose pull backend && up -d`). Stop after verification and ask, unless the operator explicitly asked for commit/push in the current task.

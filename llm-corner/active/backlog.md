@@ -27,10 +27,6 @@ Format:
   (`service/SubscriptionDeactivationService.java:42`). (The fifth,
   `SubscriptionScheduler.java:18`, became PLAN-001 item 5.) Source:
   repo TODO sweep at corner bootstrap, 2026-07-12.
-- **[Process]** `agents/claude/` and `agents/codex/` workspaces have not
-  been instantiated from `agents/_template/` yet, so the inbox paths in
-  `../protocols/messaging.md` don't exist on disk. Source: corner
-  bootstrap finalization, 2026-07-12.
 
 ## How items leave this list
 

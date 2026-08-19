@@ -4,6 +4,8 @@ Production Spring Boot backend for **CoursesTools** (CT-Pro): a subscription Saa
 
 **Gain project context from `llm-corner/README.md`** — it is the single router for everything: boot sequence, conventions, contracts, architecture, servers, protocols, current state. Do this before any task. All facts live there, not here (`llm-corner/decisions/DEC-001-llm-corner-structure.md`).
 
+Claude's personal workspace is `llm-corner/agents/claude/`; read its inbox during the router's boot sequence.
+
 ## Hard invariants (apply even if you read nothing else)
 
 1. **Never commit or push automatically.** Pushing `master` auto-deploys the live payment backend (GitHub Actions → build image → `docker compose pull backend && up -d`). Stop after verification and ask, unless the operator explicitly asked for commit/push in the current task.
