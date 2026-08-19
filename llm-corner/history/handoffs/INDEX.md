@@ -16,8 +16,7 @@ in this same directory.
   <summary>.
 -->
 
-- *(no handoff files yet)* — llm-corner bootstrapped 2026-07-12
-  (DEC-001): docs seeded and verified against the repo the same day;
-  agents boot via the root router (`../../README.md`). The first
-  session to close writes `2026-07-12-<slug>.md` here (template:
-  `../../templates/handoff.md`) and replaces this line with its row.
+- **`2026-08-19-subscription-expiry-and-direct-tv-extend.md`** — current entry
+  point. PR #37 fixes stale-base paid expiry, makes scheduler paths disjoint,
+  scopes the TV buffer to customer payments, and adds exact TV-only Direct
+  Extend. Operator merge, production verification, and order #997 repair remain.
