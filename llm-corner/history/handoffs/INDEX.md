@@ -16,7 +16,10 @@ in this same directory.
   <summary>.
 -->
 
-- **`2026-08-19-subscription-expiry-and-direct-tv-extend.md`** — current entry
+- **`2026-08-19-tv-activation-ordering-followup.md`** — current entry point.
+  PR #37 now stages command-tokened activation snapshots so the newest
+  payment/admin/Direct command wins despite async delivery order; 94 tests pass.
+- `2026-08-19-subscription-expiry-and-direct-tv-extend.md` — previous entry
   point. PR #37 fixes stale-base paid expiry, makes scheduler paths disjoint,
   scopes the TV buffer to customer payments, and adds exact TV-only Direct
   Extend. Operator merge, production verification, and order #997 repair remain.
