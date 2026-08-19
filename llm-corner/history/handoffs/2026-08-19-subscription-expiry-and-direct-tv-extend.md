@@ -69,7 +69,7 @@ and end with `ROLLBACK` until its exact affected rows are independently proven.
 ## Verification record
 
 Fresh-master and final `gradlew.bat build` gates passed. The implemented suite
-contains 83 tests; focused coverage exercises all required payment, admin,
+contains 86 tests; focused coverage exercises all required payment, admin,
 scheduler-order, policy, retry, and endpoint cases. The source TODO/debug/secret
 audit found no new defect or credential; `git diff --check` passed apart from
 Windows line-ending notices. SSH and container topology were checked read-only,
