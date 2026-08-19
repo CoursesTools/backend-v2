@@ -51,18 +51,8 @@ docker-compose.yaml
 
 ##Installation Guide###
 .INSTALLATION_GUIDE
-LOCAL_SETUP.md
-DOCKER_DB.md
 
 ## Folder with installation data##
 /TRANSP_FOLDER/
-/claude-docs/
-/claude-plans/
-/claude-git/
-/claude-payment-issue/
-/codex-corner/
-/claude-msgs/
 
 tmp_alerts_insert.sql
-
-AGENTS.md
