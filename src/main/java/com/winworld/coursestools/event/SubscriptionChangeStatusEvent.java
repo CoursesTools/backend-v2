@@ -1,9 +1,8 @@
 package com.winworld.coursestools.event;
 
 import com.winworld.coursestools.enums.SubscriptionEventType;
+import com.winworld.coursestools.enums.TradingViewExpirationPolicy;
 import lombok.Data;
-
-import java.time.LocalDateTime;
 
 @Data
 public class SubscriptionChangeStatusEvent {
@@ -11,4 +10,5 @@ public class SubscriptionChangeStatusEvent {
     private String tradingViewUsername;
     private int userSubscriptionId;
     private SubscriptionEventType eventType;
+    private TradingViewExpirationPolicy tradingViewExpirationPolicy;
 }

@@ -3,7 +3,6 @@ package com.winworld.coursestools.dto.external;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.winworld.coursestools.enums.SubscriptionTier;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,7 +12,6 @@ import java.time.LocalDateTime;
 // so future schema changes don't poison stored retry payloads.
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 public class ChangeTradingViewNameDto {
     @JsonProperty("old")
@@ -26,11 +24,21 @@ public class ChangeTradingViewNameDto {
     private LocalDateTime expiration;
     private boolean isLifetime;
 
-    /**
-     * Build a rename payload, padding the expiry by
-     * {@link ActivateTradingViewAccessDto#BOT_EXPIRY_BUFFER_DAYS} exactly like a grant
-     * so a rename does not silently shorten the buffered access window.
-     */
+    private ChangeTradingViewNameDto(
+            String oldName,
+            String newName,
+            SubscriptionTier tier,
+            LocalDateTime expiredAt,
+            boolean isLifetime
+    ) {
+        this.oldName = oldName;
+        this.newName = newName;
+        this.tier = tier;
+        this.expiration = expiredAt;
+        this.isLifetime = isLifetime;
+    }
+
+    /** Renames are non-payment synchronization and use the exact DB expiration. */
     public static ChangeTradingViewNameDto rename(
             String oldName,
             String newName,
@@ -42,7 +50,7 @@ public class ChangeTradingViewNameDto {
                 oldName,
                 newName,
                 tier,
-                ActivateTradingViewAccessDto.bufferBotExpiration(expiredAt, isLifetime),
+                expiredAt,
                 isLifetime);
     }
 }

@@ -9,12 +9,13 @@ messages, code comments, and audits. Once a contract has a number,
 NEVER renumber. New contracts get the next free number; retired ones
 stay in this list as struck-through with their retirement DEC. -->
 
-- **C1.** The TV access bot always receives an expiry padded by
-  `BOT_EXPIRY_BUFFER_DAYS` (1 day) — every bot payload is built via
-  `ActivateTradingViewAccessDto.grant()` / `bufferBotExpiration()`,
-  never with a raw `expiredAt` (pad skipped for lifetime; padded value
-  is what gets persisted to the retry queue, so replays don't compound).
-  `src/main/java/com/winworld/coursestools/dto/external/ActivateTradingViewAccessDto.java:31-68`.
+- **C1.** Only a successful customer payment sends the TV bot
+  `expiredAt + CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS` (1 day). Every
+  non-payment flow sends the exact database/admin-selected expiration;
+  lifetime is never padded. `SubscriptionChangeStatusEvent` carries an
+  explicit `TradingViewExpirationPolicy`, and retry payloads persist the
+  final value so replay cannot compound it. See DEC-002 and
+  `dto/external/ActivateTradingViewAccessDto.java`.
 - **C2.** Stripe-backed subscription expiry IS Stripe's
   `currentPeriodEnd` — set from webhook data only, never edited
   manually. Every manual/admin expiry path must call

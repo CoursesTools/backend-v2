@@ -1,6 +1,7 @@
 package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.dto.order.CreateOrderDto;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.subscription.SubscriptionType;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -162,5 +164,47 @@ class OrderServiceTest {
                 createOrderDto,
                 null
         );
+    }
+
+    @Test
+    void successfulPaymentLocksOrderThenUserBeforeReadingSubscription() {
+        User user = new User();
+        user.setId(9);
+        SubscriptionType subscriptionType = new SubscriptionType();
+        subscriptionType.setId(5);
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setId(13);
+        plan.setName(Plan.MONTH);
+        plan.setPrice(new BigDecimal("14.90"));
+        plan.setSubscriptionType(subscriptionType);
+        Order order = Order.builder()
+                .id(997)
+                .user(user)
+                .plan(plan)
+                .originalPrice(plan.getPrice())
+                .totalPrice(plan.getPrice())
+                .paymentMethod(PaymentMethod.CRYPTO)
+                .orderType(OrderType.ONE_TIME)
+                .status(com.winworld.coursestools.enums.OrderStatus.PENDING)
+                .build();
+        ProcessPaymentDto payment = ProcessPaymentDto.builder()
+                .orderId(order.getId())
+                .paymentProviderData(java.util.Map.of())
+                .build();
+        when(orderRepository.findByIdForUpdate(order.getId())).thenReturn(Optional.of(order));
+        when(userDataService.getUserByIdForUpdate(user.getId())).thenReturn(user);
+        when(userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId()))
+                .thenReturn(Optional.empty());
+
+        orderService.processSuccessfulPayment(payment);
+
+        var locksThenRead = inOrder(orderRepository, userDataService, userSubscriptionService, subscriptionService);
+        locksThenRead.verify(orderRepository).findByIdForUpdate(order.getId());
+        locksThenRead.verify(userDataService).getUserByIdForUpdate(user.getId());
+        locksThenRead.verify(userSubscriptionService)
+                .getCurrentUserSubBySubTypeId(user.getId(), subscriptionType.getId());
+        locksThenRead.verify(subscriptionService)
+                .updateUserSubscriptionAfterPayment(null, order, user, payment.getPaymentProviderData());
+        assertEquals(com.winworld.coursestools.enums.OrderStatus.PAID, order.getStatus());
     }
 }

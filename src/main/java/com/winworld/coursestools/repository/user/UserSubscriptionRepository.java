@@ -9,11 +9,14 @@ import com.winworld.coursestools.enums.SubscriptionStatus;
 import java.util.Collection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+
+import static jakarta.persistence.LockModeType.PESSIMISTIC_WRITE;
 
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Integer>, JpaSpecificationExecutor<UserSubscription> {
     @Query(value = """
@@ -48,6 +51,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             LEFT JOIN FETCH u.referred
             WHERE us.expiredAt <= CURRENT_TIMESTAMP
             AND us.status = :status
+            AND us.isTrial = false
             """)
     List<UserSubscription> findAllWithExpiredSubscriptionsByStatus(SubscriptionStatus status);
 
@@ -56,7 +60,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             FROM UserSubscription us
             JOIN FETCH us.user u
             WHERE us.expiredAt <= CURRENT_TIMESTAMP
-            AND us.status IN ('GRANTED')
+            AND us.status <> 'TERMINATED'
             AND us.isTrial = true
             """)
     List<UserSubscription> findAllWithExpiredTrialSubscription();
@@ -114,6 +118,16 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             WHERE us.id = :id
             """)
     Optional<UserSubscription> findByIdWithUserDetails(int id);
+
+    @Lock(PESSIMISTIC_WRITE)
+    @Query(value = """
+            SELECT us
+            FROM UserSubscription us
+            JOIN FETCH us.user u
+            LEFT JOIN FETCH u.referred
+            WHERE us.id = :id
+            """)
+    Optional<UserSubscription> findByIdWithUserDetailsForUpdate(int id);
 
     @Query(value = """
             SELECT us.*

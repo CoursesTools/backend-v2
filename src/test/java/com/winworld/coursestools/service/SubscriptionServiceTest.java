@@ -24,6 +24,8 @@ import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -34,7 +36,11 @@ import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.UserSocial;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.enums.SubscriptionTier;
+import com.winworld.coursestools.enums.TradingViewDeliveryStatus;
+import com.winworld.coursestools.exception.exceptions.DataValidationException;
 import com.winworld.coursestools.exception.exceptions.TradingViewUserNotFoundException;
+import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
+import org.mockito.ArgumentCaptor;
 import java.util.List;
 
 import java.math.BigDecimal;
@@ -49,6 +55,8 @@ import java.util.Optional;
 import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CURRENT_PERIOD_END;
 import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CANCEL_AT_PERIOD_END;
 import static com.winworld.coursestools.service.payment.impl.StripePaymentService.STRIPE_STATUS;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.CUSTOMER_PAYMENT_BUFFER;
+import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.EXACT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -147,7 +155,8 @@ class SubscriptionServiceTest {
                 .build();
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, existingSubscription))
+        when(subscriptionMapper.toEvent(
+                user, SubscriptionEventType.EXTENDED, existingSubscription, CUSTOMER_PAYMENT_BUFFER))
                 .thenReturn(event);
 
         subscriptionService.updateUserSubscriptionAfterPayment(
@@ -195,7 +204,8 @@ class SubscriptionServiceTest {
                 .build();
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.RESTORED, existingSubscription))
+        when(subscriptionMapper.toEvent(
+                user, SubscriptionEventType.RESTORED, existingSubscription, CUSTOMER_PAYMENT_BUFFER))
                 .thenReturn(event);
 
         LocalDateTime before = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
@@ -234,7 +244,8 @@ class SubscriptionServiceTest {
 
         when(userSubscriptionService.save(any(UserSubscription.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(subscriptionMapper.toEvent(eq(user), eq(SubscriptionEventType.CREATED), any(UserSubscription.class)))
+        when(subscriptionMapper.toEvent(
+                eq(user), eq(SubscriptionEventType.CREATED), any(UserSubscription.class), eq(CUSTOMER_PAYMENT_BUFFER)))
                 .thenReturn(new SubscriptionChangeStatusEvent());
 
         subscriptionService.updateUserSubscriptionAfterPayment(null, order, user, Map.of());
@@ -255,6 +266,7 @@ class SubscriptionServiceTest {
         plan.setDurationDays(30);
         plan.setPrice(new BigDecimal("29.99"));
 
+        LocalDateTime existingExpiration = LocalDateTime.now(ZoneOffset.UTC).plusDays(12);
         UserSubscription existingSubscription = UserSubscription.builder()
                 .id(12)
                 .user(user)
@@ -263,7 +275,7 @@ class SubscriptionServiceTest {
                 .paymentMethod(PaymentMethod.CRYPTO)
                 .price(new BigDecimal("29.99"))
                 .isTrial(false)
-                .expiredAt(LocalDateTime.of(2026, 5, 31, 22, 0))
+                .expiredAt(existingExpiration)
                 .paymentProviderData(Map.of())
                 .build();
 
@@ -278,12 +290,285 @@ class SubscriptionServiceTest {
                 .status(OrderStatus.PAID)
                 .build();
 
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, existingSubscription))
+        when(subscriptionMapper.toEvent(
+                user, SubscriptionEventType.EXTENDED, existingSubscription, CUSTOMER_PAYMENT_BUFFER))
                 .thenReturn(new SubscriptionChangeStatusEvent());
 
         subscriptionService.updateUserSubscriptionAfterPayment(existingSubscription, order, user, Map.of());
 
-        assertEquals(LocalDateTime.of(2026, 6, 30, 22, 0), existingSubscription.getExpiredAt());
+        assertEquals(existingExpiration.plusDays(30), existingSubscription.getExpiredAt());
+    }
+
+    @Test
+    void updateUserSubscriptionAfterPayment_expiredTrialStartsPaidDurationFromNow() {
+        User user = userWithTradingViewName("expired-trial");
+        user.setSubscriptions(new ArrayList<>());
+        SubscriptionPlan plan = monthlyPlan();
+        UserSubscription trial = UserSubscription.builder()
+                .id(20)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .paymentMethod(PaymentMethod.MANUAL)
+                .isTrial(true)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(34))
+                .build();
+        user.getSubscriptions().add(trial);
+        Order order = paidOrder(user, plan, PaymentMethod.CRYPTO);
+        when(userSubscriptionService.save(any(UserSubscription.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionMapper.toEvent(
+                eq(user), eq(SubscriptionEventType.CREATED), any(UserSubscription.class),
+                eq(CUSTOMER_PAYMENT_BUFFER)))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        LocalDateTime lowerBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
+        subscriptionService.updateUserSubscriptionAfterPayment(trial, order, user, Map.of());
+        LocalDateTime upperBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
+
+        UserSubscription paid = user.getSubscriptions().get(1);
+        assertFalse(paid.getExpiredAt().isBefore(lowerBound));
+        assertFalse(paid.getExpiredAt().isAfter(upperBound));
+        assertEquals(SubscriptionStatus.TERMINATED, trial.getStatus());
+    }
+
+    @Test
+    void updateUserSubscriptionAfterPayment_activeTrialKeepsRemainingAccess() {
+        User user = userWithTradingViewName("active-trial");
+        user.setSubscriptions(new ArrayList<>());
+        SubscriptionPlan plan = monthlyPlan();
+        LocalDateTime trialExpiration = LocalDateTime.now(ZoneOffset.UTC).plusDays(4);
+        UserSubscription trial = UserSubscription.builder()
+                .id(21)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRANTED)
+                .paymentMethod(PaymentMethod.MANUAL)
+                .isTrial(true)
+                .expiredAt(trialExpiration)
+                .build();
+        user.getSubscriptions().add(trial);
+        Order order = paidOrder(user, plan, PaymentMethod.CRYPTO);
+        when(userSubscriptionService.save(any(UserSubscription.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionMapper.toEvent(
+                eq(user), eq(SubscriptionEventType.CREATED), any(UserSubscription.class),
+                eq(CUSTOMER_PAYMENT_BUFFER)))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.updateUserSubscriptionAfterPayment(trial, order, user, Map.of());
+
+        assertEquals(trialExpiration.plusDays(30), user.getSubscriptions().get(1).getExpiredAt());
+    }
+
+    @Test
+    void updateUserSubscriptionAfterPayment_expiredPaidRowStartsRenewalFromNow() {
+        User user = userWithTradingViewName("expired-paid");
+        SubscriptionPlan plan = monthlyPlan();
+        UserSubscription expired = UserSubscription.builder()
+                .id(22)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRANTED)
+                .paymentMethod(PaymentMethod.CRYPTO)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(2))
+                .build();
+        Order order = paidOrder(user, plan, PaymentMethod.CRYPTO);
+        when(subscriptionMapper.toEvent(
+                user, SubscriptionEventType.EXTENDED, expired, CUSTOMER_PAYMENT_BUFFER))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        LocalDateTime lowerBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
+        subscriptionService.updateUserSubscriptionAfterPayment(expired, order, user, Map.of());
+        LocalDateTime upperBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
+
+        assertFalse(expired.getExpiredAt().isBefore(lowerBound));
+        assertFalse(expired.getExpiredAt().isAfter(upperBound));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Plan.class, names = {"MONTH", "YEAR"})
+    void adminClassicPaidPlansPublishExactNonPaymentPolicy(Plan planName) {
+        User user = userWithTradingViewName("manual-month");
+        SubscriptionPlan plan = monthlyPlan();
+        plan.setName(planName);
+        SubscriptionType type = new SubscriptionType();
+        type.setId(30);
+        type.setName(SubscriptionName.COURSESTOOLS);
+        type.setPlans(List.of(plan));
+        plan.setSubscriptionType(type);
+        UserSubscription current = UserSubscription.builder()
+                .id(23)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRANTED)
+                .paymentMethod(PaymentMethod.MANUAL)
+                .price(plan.getPrice())
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).plusDays(5))
+                .build();
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(type));
+        when(userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), type.getId()))
+                .thenReturn(Optional.of(current));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, current, EXACT))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.adminGrantPaid(user, SubscriptionTier.PRO, planName, false);
+
+        verify(subscriptionMapper).toEvent(user, SubscriptionEventType.EXTENDED, current, EXACT);
+    }
+
+    @Test
+    void adminClassicTrialPublishesExactNonPaymentPolicy() {
+        User user = userWithTradingViewName("manual-trial");
+        user.setSubscriptions(new ArrayList<>());
+        SubscriptionPlan trialPlan = monthlyPlan();
+        SubscriptionType type = new SubscriptionType();
+        type.setId(33);
+        type.setName(SubscriptionName.COURSESTOOLS);
+        type.setPlans(List.of(trialPlan));
+        trialPlan.setSubscriptionType(type);
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(type));
+        when(userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), type.getId()))
+                .thenReturn(Optional.empty());
+        when(userSubscriptionService.save(any(UserSubscription.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionMapper.toEvent(
+                eq(user), eq(SubscriptionEventType.TRIAL_CREATED), any(UserSubscription.class), eq(EXACT)))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.adminGrantTrial(
+                user, SubscriptionTier.PRO, java.time.LocalDate.now().plusDays(7));
+
+        verify(subscriptionMapper).toEvent(
+                eq(user), eq(SubscriptionEventType.TRIAL_CREATED), any(UserSubscription.class), eq(EXACT));
+    }
+
+    @Test
+    void adminCustomPublishesExactNonPaymentPolicy() {
+        User user = userWithTradingViewName("manual-custom");
+        SubscriptionPlan plan = monthlyPlan();
+        SubscriptionType type = new SubscriptionType();
+        type.setId(34);
+        UserSubscription current = UserSubscription.builder()
+                .id(24)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .paymentMethod(PaymentMethod.MANUAL)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1))
+                .build();
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(type));
+        when(userSubscriptionService.getCurrentUserSubBySubTypeId(user.getId(), type.getId()))
+                .thenReturn(Optional.of(current));
+        when(userSubscriptionService.save(current)).thenReturn(current);
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, current, EXACT))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.adminCustomUpdateExpiry(user, java.time.LocalDate.now().plusDays(10));
+
+        verify(subscriptionMapper).toEvent(user, SubscriptionEventType.EXTENDED, current, EXACT);
+    }
+
+    @Test
+    void directExtendSubmitsExactPayloadWithoutChangingSubscription() {
+        User user = userWithTradingViewName("AryanSN484");
+        SubscriptionPlan plan = monthlyPlan();
+        SubscriptionType type = new SubscriptionType();
+        type.setId(31);
+        type.setPlans(List.of(plan));
+        UserSubscription current = UserSubscription.builder()
+                .id(4968)
+                .user(user)
+                .plan(plan)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .paymentMethod(PaymentMethod.CRYPTO)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.of(2026, 8, 15, 15, 52))
+                .build();
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(type));
+        when(userSubscriptionService.getUserSubBySubTypeIdNotTerminated(user.getId(), type.getId()))
+                .thenReturn(Optional.of(current));
+        when(activatingSubscriptionService.activateTradingViewAccess(eq(user.getId()), any()))
+                .thenReturn(TradingViewDeliveryStatus.DELIVERED);
+        ArgumentCaptor<ActivateTradingViewAccessDto> payload =
+                ArgumentCaptor.forClass(ActivateTradingViewAccessDto.class);
+
+        var response = subscriptionService.directExtendTradingViewAccess(
+                user, java.time.LocalDate.of(2026, 9, 19), 1);
+
+        verify(activatingSubscriptionService).activateTradingViewAccess(eq(user.getId()), payload.capture());
+        assertEquals(LocalDateTime.of(2026, 9, 19, 0, 0), payload.getValue().getExpiration());
+        assertEquals(SubscriptionTier.PRO, payload.getValue().getTier());
+        assertEquals(TradingViewDeliveryStatus.DELIVERED, response.getDeliveryStatus());
+        assertEquals(4968, response.getSubscriptionId());
+        assertEquals(LocalDateTime.of(2026, 8, 15, 15, 52), current.getExpiredAt());
+        assertEquals(SubscriptionStatus.GRACE_PERIOD, current.getStatus());
+        verify(userSubscriptionService, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void directExtendRejectsUserWithoutNonTerminatedSubscription() {
+        User user = userWithTradingViewName("no-sub");
+        SubscriptionType type = new SubscriptionType();
+        type.setId(32);
+        when(subscriptionTypeRepository.findByName(SubscriptionName.COURSESTOOLS))
+                .thenReturn(Optional.of(type));
+        when(userSubscriptionService.getUserSubBySubTypeIdNotTerminated(user.getId(), type.getId()))
+                .thenReturn(Optional.empty());
+
+        DataValidationException error = assertThrows(DataValidationException.class, () ->
+                subscriptionService.directExtendTradingViewAccess(
+                        user, java.time.LocalDate.of(2026, 9, 19), 1));
+
+        assertTrue(error.getMessage().contains("requires an existing non-terminated subscription"));
+        verify(activatingSubscriptionService, never()).activateTradingViewAccess(any(), any());
+    }
+
+    @Test
+    void schedulerPaths_paidThenTrialTerminatePendingAndGraceTrials() {
+        UserSubscription pendingTrial = expiredTrial(41, 141, SubscriptionStatus.PENDING);
+        UserSubscription graceTrial = expiredTrial(42, 142, SubscriptionStatus.GRACE_PERIOD);
+        when(userSubscriptionService.findAllExpiredSubscriptionsByStatus(SubscriptionStatus.GRANTED))
+                .thenReturn(List.of());
+        when(userSubscriptionService.findAllWithExpiredTrialSubscription())
+                .thenReturn(List.of(pendingTrial, graceTrial));
+        when(subscriptionMapper.toEvent(
+                pendingTrial.getUser(), SubscriptionEventType.TRIAL_ENDED, pendingTrial, EXACT))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+        when(subscriptionMapper.toEvent(
+                graceTrial.getUser(), SubscriptionEventType.TRIAL_ENDED, graceTrial, EXACT))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.deactivateExpiredSubscriptions();
+        List<Integer> userIds = subscriptionService.deactivateExpiredTrialSubscriptions();
+
+        assertEquals(SubscriptionStatus.TERMINATED, pendingTrial.getStatus());
+        assertEquals(SubscriptionStatus.TERMINATED, graceTrial.getStatus());
+        assertEquals(List.of(141, 142), userIds);
+    }
+
+    @Test
+    void schedulerPaths_trialThenPaidCannotMoveExpiredTrialToGrace() {
+        UserSubscription trial = expiredTrial(43, 143, SubscriptionStatus.GRANTED);
+        when(userSubscriptionService.findAllWithExpiredTrialSubscription()).thenReturn(List.of(trial));
+        when(userSubscriptionService.findAllExpiredSubscriptionsByStatus(SubscriptionStatus.GRANTED))
+                .thenReturn(List.of());
+        when(subscriptionMapper.toEvent(trial.getUser(), SubscriptionEventType.TRIAL_ENDED, trial, EXACT))
+                .thenReturn(new SubscriptionChangeStatusEvent());
+
+        subscriptionService.deactivateExpiredTrialSubscriptions();
+        subscriptionService.deactivateExpiredSubscriptions();
+
+        assertEquals(SubscriptionStatus.TERMINATED, trial.getStatus());
+        verify(subscriptionDeactivationService, never()).deactivateSingleSubscription(trial.getId());
     }
 
     @Test
@@ -303,7 +588,7 @@ class SubscriptionServiceTest {
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
         when(userSubscriptionRepository.findByStripeSubscriptionId("sub_sync")).thenReturn(Optional.of(subscription));
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, subscription)).thenReturn(event);
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, subscription, EXACT)).thenReturn(event);
 
         subscriptionService.syncStripeSubscriptionUpdated(StripeSubscriptionLifecycleDto.builder()
                 .subscriptionId("sub_sync")
@@ -370,7 +655,8 @@ class SubscriptionServiceTest {
 
         SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
         when(userSubscriptionRepository.findByStripeSubscriptionId("sub_deleted")).thenReturn(Optional.of(subscription));
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, subscription)).thenReturn(event);
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, subscription, EXACT))
+                .thenReturn(event);
 
         subscriptionService.handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto.builder()
                 .subscriptionId("sub_deleted")
@@ -428,6 +714,42 @@ class SubscriptionServiceTest {
         type.setName(SubscriptionName.COURSESTOOLS);
         type.setPlans(List.of(lifetimePlan));
         return type;
+    }
+
+    private SubscriptionPlan monthlyPlan() {
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setName(Plan.MONTH);
+        plan.setTier(SubscriptionTier.PRO);
+        plan.setDurationDays(30);
+        plan.setPrice(new BigDecimal("14.90"));
+        return plan;
+    }
+
+    private Order paidOrder(User user, SubscriptionPlan plan, PaymentMethod paymentMethod) {
+        return Order.builder()
+                .id(997)
+                .user(user)
+                .plan(plan)
+                .originalPrice(plan.getPrice())
+                .totalPrice(plan.getPrice())
+                .paymentMethod(paymentMethod)
+                .orderType(OrderType.ONE_TIME)
+                .status(OrderStatus.PAID)
+                .build();
+    }
+
+    private UserSubscription expiredTrial(int subscriptionId, int userId, SubscriptionStatus status) {
+        User user = new User();
+        user.setId(userId);
+        return UserSubscription.builder()
+                .id(subscriptionId)
+                .user(user)
+                .plan(monthlyPlan())
+                .status(status)
+                .paymentMethod(PaymentMethod.MANUAL)
+                .isTrial(true)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1))
+                .build();
     }
 
     private User userWithTradingViewName(String tvName) {

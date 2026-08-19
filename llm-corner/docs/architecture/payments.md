@@ -107,6 +107,11 @@ with `createPaymentLink` / `getPaymentMethod` / `processPayment`.
 transactional, order row locked via `findByIdForUpdate`
 (PESSIMISTIC_WRITE, `repository/OrderRepository.java:17-19`):
 
+Before reading the current subscription it also locks the user row. The order
+lock deduplicates callbacks for one order; the user lock serializes different
+orders/callbacks that could otherwise extend the same subscription from one
+stale expiry.
+
 1. Already-PAID guard: throws unless the order is RECURRENT (Stripe renewals
    legitimately re-hit the same order, `:122-127`).
 2. Renewal payments are booked at `originalPrice` (undiscounted); first
@@ -126,15 +131,21 @@ sub for that subscription type and publishes a `SubscriptionEventType`:
 
 | Current sub | Action | Event |
 |---|---|---|
-| none, or trial | `createNewSubscription` (trial row -> TERMINATED; expiry base = trial's `expiredAt`, else now UTC) `:296-325` | `CREATED` |
-| `GRACE_PERIOD` | `updateGracePeriodSubscription` (expiry base = now) `:327-345` | `RESTORED` |
-| anything else | `extendExistingSubscription` (expiry base = current `expiredAt`) `:347-372` | `EXTENDED` |
+| none, or trial | `createNewSubscription` (trial row -> TERMINATED; non-Stripe base = max(now UTC, trial expiry)) | `CREATED` |
+| `GRACE_PERIOD` | `updateGracePeriodSubscription` (non-Stripe base = max(now UTC, expiry)) | `RESTORED` |
+| anything else | `extendExistingSubscription` (non-Stripe base = max(now UTC, expiry)) | `EXTENDED` |
 
 Expiry (`calculateExpirationDate`, `:597-610`):
 
 - **Stripe:** `expiredAt` = the Stripe subscription's `currentPeriodEnd`
   (epoch seconds -> UTC), mirrored exactly. Stripe owns the billing boundary.
-- **Everything else:** `expiredAt` = base + `plan.durationDays`.
+- **Everything else:** `expiredAt` = `max(now UTC, existing expiredAt) +
+  plan.durationDays`; an expired row can never pull a fresh payment backward.
+
+All successful customer-payment events carry
+`TradingViewExpirationPolicy.CUSTOMER_PAYMENT_BUFFER`; admin grants that reuse
+the same subscription update core explicitly carry `EXACT` and do not count
+as a payment.
 
 Switching a Stripe-backed sub to a non-Stripe payment cancels the Stripe
 subscription remotely (`:335-337,363-365`). New/restored subs are saved as
@@ -160,8 +171,8 @@ Keeps local state matching Stripe when changes happen outside our flow
   (`:236-268`): syncs metadata, then (unless already TERMINATED) sets
   `TERMINATED`, deactivates the referral, and publishes `GRACE_PERIOD_END`.
   Note: there is **no bot-revoke channel** — TV access lapses when the
-  expiry timestamp already sent to the bot passes (padded +1 day,
-  `dto/external/ActivateTradingViewAccessDto.java:20-31`).
+  expiration last sent to the bot passes. A preceding customer-payment
+  activation is padded by one day; lifecycle-only syncs are exact (DEC-002).
 - The reverse guard: admin/manual expiry edits on Stripe-backed subs are
   rejected (`ensureNotStripeManaged`, `:630-636`).
 

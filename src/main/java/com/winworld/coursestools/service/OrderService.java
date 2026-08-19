@@ -117,7 +117,7 @@ public class OrderService {
         Order order = orderRepository.findByIdForUpdate(dto.getOrderId())
                 .orElseThrow(() -> new EntityNotFoundException("Order not found"));
         Code code = order.getCode();
-        User user = order.getUser();
+        User user = userDataService.getUserByIdForUpdate(order.getUser().getId());
 
         boolean orderIsPaid = order.getStatus().equals(OrderStatus.PAID);
         boolean isRecurrentPayment = order.getOrderType().equals(OrderType.RECURRENT) && orderIsPaid;

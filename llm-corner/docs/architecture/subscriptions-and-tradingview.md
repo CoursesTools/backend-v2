@@ -37,14 +37,17 @@ tradingview.com. All paths below are relative to
 - **Payment success** — `OrderService.java:147` calls
   `updateUserSubscriptionAfterPayment` (`:189`), which branches:
   - no sub or trial → `createNewSubscription` (`:296`); trial gets
-    `TERMINATED` and its remaining time is credited (base date = trial
-    expiry); publishes `CREATED`.
+    `TERMINATED`; active trial time is credited, while an expired trial uses
+    now as the base; publishes `CREATED`.
   - `GRACE_PERIOD` → `updateGracePeriodSubscription` (`:327`), expiry from
     now; publishes `RESTORED`.
   - else → `extendExistingSubscription` (`:347`); publishes `EXTENDED`.
-  - Expiry rule everywhere: if `paymentProviderData` has Stripe
+  - Expiry rule: if `paymentProviderData` has Stripe
     `CURRENT_PERIOD_END`, mirror that epoch exactly (Stripe owns the
-    billing boundary); otherwise `+plan.durationDays` (`:356-361`, `:597`).
+    billing boundary); otherwise use
+    `max(now UTC, existing expiredAt) + plan.durationDays`. Payment handling
+    pessimistically locks the user before re-reading the current subscription,
+    serializing different paid orders for the same user.
   - Switching a Stripe-backed sub to another method cancels the Stripe
     subscription first (`:335`, `:363`).
 - **Stripe lifecycle sync** — webhook-driven
@@ -79,7 +82,9 @@ tradingview.com. All paths below are relative to
 ## Async activation: event → listener → TV bot
 
 `SubscriptionMapper.toEvent` builds `SubscriptionChangeStatusEvent`
-(email, tradingViewUsername, userSubscriptionId, eventType).
+(email, tradingViewUsername, userSubscriptionId, eventType,
+`tradingViewExpirationPolicy`). Every publisher must explicitly select
+`CUSTOMER_PAYMENT_BUFFER` or `EXACT` (DEC-002).
 `listener/SubscriptionChangeStatusListener.activateUserSubscription` is
 `@TransactionalEventListener` (after commit) + `@Async` + REQUIRES_NEW
 (`:50-52`) and reacts only to `CREATED`, `TRIAL_CREATED`, `EXTENDED`,
@@ -102,17 +107,14 @@ The email-notification listener body is currently commented out (`:82-84`).
 `UserSocialService.bindUserTradingView` (`:67-104`), which captures the old
 name *before* mutating and skips the bot on case-only changes.
 
-**+1 day pad**: `BOT_EXPIRY_BUFFER_DAYS = 1`
-(`ActivateTradingViewAccessDto.java:31`). The `grant()` / `rename()`
-factories add one day to every non-lifetime expiration before it leaves the
-backend. Why: the bot receives an offset-less timestamp and its
-Moscow-time (UTC+3) infrastructure can read a UTC value ~3h early, and
-Stripe's renewal webhook can land slightly after the period boundary —
-without the pad, paying users get dropped right before their auto-charge.
-Trade-off (accepted): since there is no revoke call, trials and terminated
-subs also keep bot access up to one extra day. Always build payloads via
-the factories, never the all-args constructor — the padded value is what
-gets persisted to the retry queue, so replays never compound the pad.
+**Customer-payment +1 day pad**:
+`CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS = 1`. A successful customer payment
+(first purchase, renewal, or grace restoration) uses
+`customerPaymentGrant()`; all trials, admin grants/updates, Stripe lifecycle
+syncs, Direct Extend, and renames use exact factories. The pad protects paid
+users from the offset-less bot timestamp and late renewal delivery without
+silently extending manual access. The final value is persisted to the retry
+queue, so replay never compounds it. Lifetime is never padded (DEC-002).
 
 ## Failure handling & durable retry queue
 
@@ -163,7 +165,7 @@ Admin API (`controller/AdminController.java:115-139`, ADMIN role):
 | Job | Cron | Does |
 |---|---|---|
 | `SubscriptionScheduler.deactivateExpiredSubscriptions` | `0 0 * * * *` (hourly) | GRANTED+expired → GRACE_PERIOD; unsubscribes user's alerts |
-| `SubscriptionScheduler.cleanupExpiredTrialSubscriptions` | `0 0 * * * *` | expired trials → TERMINATED; unsubscribes alerts |
+| `SubscriptionScheduler.cleanupExpiredTrialSubscriptions` | `0 0 * * * *` | every non-terminated expired trial (PENDING/GRANTED/GRACE_PERIOD) → TERMINATED; unsubscribes alerts |
 | `SubscriptionScheduler.cleanupExpiredGracePeriodSubscriptions` | `0 0 * * * *` | past-grace reconciliation → TERMINATED |
 | `TradingViewRetryScheduler.pollDueJobs` | `0 * * * * *` (every minute) | drains due PENDING retry jobs |
 
@@ -176,7 +178,15 @@ was never built).
   yet confirmed", not "unpaid". If the async listener dies before saving,
   a sub can linger in `PENDING` while the retry queue holds the bot call.
 - All expiry math is UTC (`LocalDateTime.now(ZoneOffset.UTC)`); the +1 day
-  bot pad exists precisely because the bot side is *not* UTC-aware.
+  payment-only bot pad exists precisely because the bot side is *not*
+  UTC-aware.
+- Paid expiry selection explicitly excludes trials. Each paid candidate is
+  pessimistically locked and revalidated before moving to grace, so scheduler
+  ordering and a concurrent renewal cannot overwrite fresh state.
+- `POST /api/v1/admin/access/direct` is TV-only: it requires a
+  non-terminated subscription to inherit email/tier/lifetime, sends the exact
+  selected date, may write retry bookkeeping, and never mutates business
+  subscription/order/transaction state.
 - Backend cron never cancels Stripe subscriptions; Stripe-backed local
   expiry is driven by Stripe webhooks only, and manual expiry edits on
   Stripe subs are rejected with a 400.

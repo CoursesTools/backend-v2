@@ -7,6 +7,8 @@ import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ClassicGrantDto;
 import com.winworld.coursestools.dto.admin.CreateCustomInvoiceDto;
 import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
+import com.winworld.coursestools.dto.admin.DirectAccessRequestDto;
+import com.winworld.coursestools.dto.admin.DirectAccessSubmissionDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
 import com.winworld.coursestools.dto.admin.UpdatePartnershipCashbackDto;
 import com.winworld.coursestools.dto.admin.TradingViewRetryJobFilterDto;
@@ -18,11 +20,14 @@ import com.winworld.coursestools.service.AdminInvoiceService;
 import com.winworld.coursestools.service.AdminOrderService;
 import com.winworld.coursestools.service.AdminService;
 import com.winworld.coursestools.service.AdminTradingViewRetryService;
+import com.winworld.coursestools.config.security.UserPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -78,6 +83,15 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public UserSubscriptionReadDto updateCustomAccess(@RequestBody @Valid CustomAccessUpdateDto dto) {
         return adminService.updateCustomAccess(dto);
+    }
+
+    @PostMapping("/access/direct")
+    @PreAuthorize("hasRole('ADMIN')")
+    public DirectAccessSubmissionDto directExtendAccess(
+            @RequestBody @Valid DirectAccessRequestDto dto,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal actor
+    ) {
+        return adminService.directExtendAccess(dto, actor.userId());
     }
 
     @PatchMapping("/users/partnership/cashback")

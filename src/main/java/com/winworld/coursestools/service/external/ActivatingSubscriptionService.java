@@ -3,6 +3,7 @@ package com.winworld.coursestools.service.external;
 import com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto;
 import com.winworld.coursestools.dto.external.ChangeTradingViewNameDto;
 import com.winworld.coursestools.enums.TradingViewRetryJobType;
+import com.winworld.coursestools.enums.TradingViewDeliveryStatus;
 import com.winworld.coursestools.exception.exceptions.TradingViewUserNotFoundException;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ public class ActivatingSubscriptionService {
     private String changeTradingViewBotUrl;
 
     @Retry(name = "default", fallbackMethod = "handleActivationFallback")
-    public void activateTradingViewAccess(Integer userId, ActivateTradingViewAccessDto dto) {
+    public TradingViewDeliveryStatus activateTradingViewAccess(Integer userId, ActivateTradingViewAccessDto dto) {
         try {
             restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
@@ -47,6 +48,7 @@ public class ActivatingSubscriptionService {
         }
         log.info("TV activation succeeded: userId={}, name={}, tier={}, expiration={}",
                 userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration());
+        return TradingViewDeliveryStatus.DELIVERED;
     }
 
     @Retry(name = "default", fallbackMethod = "handleRenameFallback")
@@ -73,10 +75,15 @@ public class ActivatingSubscriptionService {
     // enqueues a durable retry so the caller's @Transactional can still commit the
     // subscription state. The TradingViewRetryScheduler drains the queue.
     @SuppressWarnings("unused")
-    public void handleActivationFallback(Integer userId, ActivateTradingViewAccessDto dto, Throwable throwable) {
+    public TradingViewDeliveryStatus handleActivationFallback(
+            Integer userId,
+            ActivateTradingViewAccessDto dto,
+            Throwable throwable
+    ) {
         log.error("TV activation failed after retries — enqueuing durable retry (userId={}, name={}, exp={})",
                 userId, dto.getTradingViewName(), dto.getExpiration(), throwable);
         retryService.enqueue(userId, TradingViewRetryJobType.ACTIVATE, dto, throwable);
+        return TradingViewDeliveryStatus.QUEUED;
     }
 
     @SuppressWarnings("unused")
@@ -95,8 +102,11 @@ public class ActivatingSubscriptionService {
     // 404 rethrows to the caller while transient failures fall through to the Throwable
     // overloads above that enqueue a durable retry.
     @SuppressWarnings("unused")
-    public void handleActivationFallback(Integer userId, ActivateTradingViewAccessDto dto,
-                                         TradingViewUserNotFoundException e) {
+    public TradingViewDeliveryStatus handleActivationFallback(
+            Integer userId,
+            ActivateTradingViewAccessDto dto,
+            TradingViewUserNotFoundException e
+    ) {
         throw e;
     }
 

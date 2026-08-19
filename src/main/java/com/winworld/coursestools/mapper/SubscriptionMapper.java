@@ -7,6 +7,7 @@ import com.winworld.coursestools.entity.subscription.SubscriptionType;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.SubscriptionEventType;
+import com.winworld.coursestools.enums.TradingViewExpirationPolicy;
 import com.winworld.coursestools.event.SubscriptionChangeStatusEvent;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -22,8 +23,12 @@ public interface SubscriptionMapper {
     @Mapping(target = "email", source = "user.email")
     @Mapping(target = "eventType", source = "eventType")
     @Mapping(target = "userSubscriptionId", source = "userSubscription.id")
+    @Mapping(target = "tradingViewExpirationPolicy", source = "tradingViewExpirationPolicy")
     SubscriptionChangeStatusEvent toEvent(
-            User user, SubscriptionEventType eventType, UserSubscription userSubscription
+            User user,
+            SubscriptionEventType eventType,
+            UserSubscription userSubscription,
+            TradingViewExpirationPolicy tradingViewExpirationPolicy
     );
 
     SubscriptionReadDto toDto(SubscriptionType subscriptionType);

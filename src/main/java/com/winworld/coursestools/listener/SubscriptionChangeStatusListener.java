@@ -56,10 +56,15 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         }
         var userSubscription = userSubscriptionService.getUserSubById(event.getUserSubscriptionId());
         Integer userId = userSubscription.getUser().getId();
-        ActivateTradingViewAccessDto dto = ActivateTradingViewAccessDto.grant(
-                event.getEmail(), userSubscription.getPlan().getTier(),
-                event.getTradingViewUsername(), userSubscription.getExpiredAt(),
-                userSubscription.getPlan().getName() == Plan.LIFETIME);
+        boolean isLifetime = userSubscription.getPlan().getName() == Plan.LIFETIME;
+        ActivateTradingViewAccessDto dto = switch (event.getTradingViewExpirationPolicy()) {
+            case CUSTOMER_PAYMENT_BUFFER -> ActivateTradingViewAccessDto.customerPaymentGrant(
+                    event.getEmail(), userSubscription.getPlan().getTier(),
+                    event.getTradingViewUsername(), userSubscription.getExpiredAt(), isLifetime);
+            case EXACT -> ActivateTradingViewAccessDto.exactGrant(
+                    event.getEmail(), userSubscription.getPlan().getTier(),
+                    event.getTradingViewUsername(), userSubscription.getExpiredAt(), isLifetime);
+        };
         try {
             activatingSubscriptionService.activateTradingViewAccess(userId, dto);
         } catch (TradingViewUserNotFoundException e) {

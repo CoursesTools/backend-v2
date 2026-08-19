@@ -3,6 +3,8 @@ package com.winworld.coursestools.service;
 import com.winworld.coursestools.dto.admin.AdminUserReadDto;
 import com.winworld.coursestools.dto.admin.ClassicGrantDto;
 import com.winworld.coursestools.dto.admin.CustomAccessUpdateDto;
+import com.winworld.coursestools.dto.admin.DirectAccessRequestDto;
+import com.winworld.coursestools.dto.admin.DirectAccessSubmissionDto;
 import com.winworld.coursestools.dto.admin.StatisticsAggregation;
 import com.winworld.coursestools.dto.admin.UpdatePartnershipCashbackDto;
 import com.winworld.coursestools.dto.admin.StatisticsReadDto;
@@ -104,6 +106,12 @@ public class AdminService {
         return userMapper.toDto(
                 subscriptionService.adminCustomUpdateExpiry(user, dto.getExpiredAt())
         );
+    }
+
+    @Transactional
+    public DirectAccessSubmissionDto directExtendAccess(DirectAccessRequestDto dto, int actorUserId) {
+        User user = userDataService.getUserByTradingViewName(dto.getTradingViewName());
+        return subscriptionService.directExtendTradingViewAccess(user, dto.getExpiredAt(), actorUserId);
     }
 
     public AdminUserReadDto getUserInfo(String tradingViewName, String email, Integer userId, String partnerCode) {

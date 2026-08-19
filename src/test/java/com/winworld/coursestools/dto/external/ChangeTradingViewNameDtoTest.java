@@ -14,10 +14,10 @@ class ChangeTradingViewNameDtoTest {
     private final ObjectMapper mapper = new ApplicationConfiguration().objectMapper();
 
     @Test
-    void rename_appliesSameOneDayBuffer_asGrant() {
+    void rename_usesExactDatabaseExpiration() {
         LocalDateTime exp = LocalDateTime.of(2026, 8, 11, 15, 41, 38);
         var dto = ChangeTradingViewNameDto.rename("old", "new", SubscriptionTier.PRO, exp, false);
-        assertThat(dto.getExpiration()).isEqualTo(exp.plusDays(1));
+        assertThat(dto.getExpiration()).isEqualTo(exp);
     }
 
     @Test
