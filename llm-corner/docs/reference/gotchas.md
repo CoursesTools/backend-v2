@@ -63,6 +63,21 @@ code pointer.
 
 ## TradingView bot expiry
 
+### Async subscription events must not re-read payload state or bypass ordering
+
+**Symptom:** an old paid event runs after a newer admin/Direct action and adds
+the payment day to the newer manual expiration, or an old exact event overwrites
+a newer paid payload.
+**Root cause:** `@Async` after-commit execution order is not transaction order.
+A snapshot prevents policy/state mixing but does not stop an old snapshot from
+being sent after a newer Direct command.
+**Fix:** activation producers transactionally stage the final payload with a
+fresh `command_id` in the user's unique PENDING ACTIVATE retry row. Delivery
+locks subscription then command row and sends only the matching current ID.
+Direct, synchronous grants, async listeners, and retry scheduling share that
+slot, so the newest staged command is final. A stale event only reconciles an
+unchanged PENDING subscription; it never sends or revives terminal/grace state.
+
 ### TV access revoked ~3h before the Stripe auto-charge
 
 **Symptom:** paying users lose indicator access a few hours before their renewal charge lands.
@@ -95,7 +110,7 @@ selection.
 
 **Symptom:** a retry row for a misspelled TradingView nickname sits PENDING forever, or an admin grant returns 503.
 **Root cause:** "user not found" cannot be fixed by waiting — retrying is noise; swallowing it hides it from the operator.
-**Fix:** `TradingViewUserNotFoundException extends DataValidationException` → ignore-listed from retries and mapped to HTTP 400 for admin/user callers. The async payment path can't 400 anyone: it marks the sub GRANTED (customer paid) and enqueues a DEAD retry row so the admin TV-retry page shows "action required" (`listener/SubscriptionChangeStatusListener.java:65-74`). Commit `8db6481`.
+**Fix:** `TradingViewUserNotFoundException extends DataValidationException` → ignore-listed from retries and mapped to HTTP 400 for admin/user callers. The async payment path can't 400 anyone: it marks the sub GRANTED (customer paid) and converts its staged PENDING command to DEAD so the admin TV-retry page shows "action required". Commit `8db6481`, command-slot hardening in PR #37.
 
 ## Subscriptions & Stripe lifecycle
 

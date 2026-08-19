@@ -2,6 +2,7 @@ package com.winworld.coursestools.service;
 
 import com.winworld.coursestools.entity.Order;
 import com.winworld.coursestools.entity.Referral;
+import com.winworld.coursestools.entity.TradingViewRetryJob;
 import com.winworld.coursestools.entity.subscription.SubscriptionPlan;
 import com.winworld.coursestools.entity.user.User;
 import com.winworld.coursestools.entity.user.UserSubscription;
@@ -20,10 +21,12 @@ import com.winworld.coursestools.repository.subscription.SubscriptionPlanReposit
 import com.winworld.coursestools.repository.subscription.SubscriptionTypeRepository;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import com.winworld.coursestools.service.external.ActivatingSubscriptionService;
+import com.winworld.coursestools.service.external.TradingViewRetryService;
 import com.winworld.coursestools.service.payment.impl.StripePaymentService;
 import com.winworld.coursestools.service.user.UserDataService;
 import com.winworld.coursestools.service.user.UserSubscriptionService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
@@ -101,6 +105,9 @@ class SubscriptionServiceTest {
     private ActivatingSubscriptionService activatingSubscriptionService;
 
     @Mock
+    private TradingViewRetryService tradingViewRetryService;
+
+    @Mock
     private UserSubscriptionRepository userSubscriptionRepository;
 
     @Mock
@@ -114,6 +121,20 @@ class SubscriptionServiceTest {
 
     @InjectMocks
     private SubscriptionService subscriptionService;
+
+    @BeforeEach
+    void setUpActivationCommandSlot() {
+        TradingViewRetryJob job = TradingViewRetryJob.builder()
+                .id(501)
+                .commandId("test-command")
+                .build();
+        org.mockito.Mockito.lenient()
+                .when(tradingViewRetryService.stageActivation(anyInt(), any()))
+                .thenReturn("test-command");
+        org.mockito.Mockito.lenient()
+                .when(tradingViewRetryService.lockCurrentActivation(anyInt(), eq("test-command")))
+                .thenReturn(Optional.of(job));
+    }
 
     @Test
     void updateUserSubscriptionAfterPayment_usesStripeCurrentPeriodEndSecondForSecond() {

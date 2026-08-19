@@ -3,6 +3,8 @@ package com.winworld.coursestools.dto.external;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.winworld.coursestools.enums.SubscriptionTier;
+import com.winworld.coursestools.enums.TradingViewExpirationPolicy;
+import com.winworld.coursestools.event.SubscriptionChangeStatusEvent;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -74,6 +76,17 @@ public class ActivateTradingViewAccessDto {
                 bufferCustomerPaymentExpiration(expiredAt, isLifetime),
                 isLifetime
         );
+    }
+
+    public static ActivateTradingViewAccessDto fromSubscriptionEvent(SubscriptionChangeStatusEvent event) {
+        if (event.getTradingViewExpirationPolicy() == TradingViewExpirationPolicy.CUSTOMER_PAYMENT_BUFFER) {
+            return customerPaymentGrant(
+                    event.getEmail(), event.getTier(), event.getTradingViewUsername(),
+                    event.getExpiration(), event.isLifetime());
+        }
+        return exactGrant(
+                event.getEmail(), event.getTier(), event.getTradingViewUsername(),
+                event.getExpiration(), event.isLifetime());
     }
 
     private static LocalDateTime bufferCustomerPaymentExpiration(LocalDateTime expiredAt, boolean isLifetime) {

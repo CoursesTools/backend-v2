@@ -26,6 +26,10 @@ queries could also strand expired trials in PENDING or GRACE_PERIOD.
 - Paid and trial scheduler queries are mutually exclusive; paid candidates
   are locked and revalidated before state transition.
 - DEC-002 makes exact-vs-payment-buffer explicit at the event boundary.
+- Activation events snapshot their final payload and transactionally replace a
+  command-tokened per-user ACTIVATE outbox slot. Locked delivery rejects
+  superseded events, so async execution order cannot mix policies or overwrite
+  a newer Direct/admin/payment command.
 - Direct Extend inherits identity/tier/lifetime and may only touch TV retry
   bookkeeping, never the subscription/order/transaction tables.
 
@@ -40,6 +44,8 @@ queries could also strand expired trials in PENDING or GRACE_PERIOD.
 - [x] Explicit event policy and exact/payment DTO factories
 - [x] Admin endpoint, validation, audit log, durable delivery outcome
 - [x] Manual/trial/custom/rename/lifetime/retry regression coverage
+- [x] Chief-auditor follow-up: deterministic async/Direct command ordering,
+  snapshot validation, PENDING-status reconciliation, and 404 DEAD conversion
 
 ### Phase C — delivery
 - [x] Full local build and chief-auditor source review

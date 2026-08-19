@@ -81,15 +81,22 @@ tradingview.com. All paths below are relative to
 
 ## Async activation: event → listener → TV bot
 
-`SubscriptionMapper.toEvent` builds `SubscriptionChangeStatusEvent`
-(email, tradingViewUsername, userSubscriptionId, eventType,
-`tradingViewExpirationPolicy`). Every publisher must explicitly select
-`CUSTOMER_PAYMENT_BUFFER` or `EXACT` (DEC-002).
+`SubscriptionMapper.toEvent` builds `SubscriptionChangeStatusEvent` with an
+immutable bot snapshot (user/subscription IDs, email, TradingView username,
+tier, expiration, lifetime, event type, and `tradingViewExpirationPolicy`).
+Every publisher must explicitly select `CUSTOMER_PAYMENT_BUFFER` or `EXACT`
+(DEC-002). Before publication, activation-producing transactions persist the
+final DTO plus a fresh `activationCommandId` into the user's single PENDING
+ACTIVATE retry slot.
 `listener/SubscriptionChangeStatusListener.activateUserSubscription` is
 `@TransactionalEventListener` (after commit) + `@Async` + REQUIRES_NEW
 (`:50-52`) and reacts only to `CREATED`, `TRIAL_CREATED`, `EXTENDED`,
-`RESTORED` (`:31-36`). It re-reads the sub, builds the grant payload, calls
-the bot, then flips status to `GRANTED` and saves (`:76-77`).
+`RESTORED` (`:31-36`). It locks the subscription, then the staged retry row,
+and delivers only if the command ID and snapshot are still current. A newer
+admin/payment/Direct command therefore supersedes an older async event instead
+of inheriting its policy. A superseded event may still reconcile PENDING to
+GRANTED only when its committed snapshot still matches; it never revives
+GRACE_PERIOD/TERMINATED state.
 `GRACE_PERIOD_START/END` and `TRIAL_ENDED` trigger **no bot call — there is
 no revoke channel**; access dies when the expiration sent earlier passes.
 The email-notification listener body is currently commented out (`:82-84`).
@@ -127,8 +134,8 @@ resilience4j `@Retry(name = "default")`: 3 attempts, exponential 1s→5s;
   `DataValidationException`, so never retried) — the TV nickname doesn't
   exist (`:33-37`). Dedicated fallback overloads rethrow it (`:97-107`);
   the async listener then still marks the sub `GRANTED` (customer paid) and
-  calls `enqueueDead` so the admin retry page shows "nickname invalid —
-  action required" (`SubscriptionChangeStatusListener.java:63-75`). Admin
+  converts the same staged PENDING command to DEAD so the admin retry page
+  shows "nickname invalid — action required". Admin
   grant / self-bind paths surface it as a 400 instead.
 - Other non-2xx / IO failure → after in-process retries the `Throwable`
   fallback **does not throw**: it enqueues a durable job so the caller's
@@ -136,10 +143,14 @@ resilience4j `@Retry(name = "default")`: 3 attempts, exponential 1s→5s;
 
 Queue: table `trading_view_retry_jobs`
 (`db/migration/V11__trading_view_retry_jobs.sql`, +`force_retry_count` in
-V12): jsonb `payload`, `attempts`, `next_attempt_at`, `last_error` (2048,
+V12, +`command_id` in V15): jsonb `payload`, `attempts`, `next_attempt_at`, `last_error` (2048,
 includes bot status+body), statuses `PENDING`/`DEAD`, types
 `ACTIVATE`/`RENAME`. Partial unique index `(user_id, type) WHERE
 status='PENDING'` — a fresh enqueue overwrites the stale PENDING job.
+For ACTIVATE, `command_id` turns that row into the latest-command outbox:
+producer staging, async listeners, Direct Extend, synchronous grants, and the
+retry scheduler all serialize on the same locked row. Success deletes it;
+transient failure keeps the final payload; a stale command ID is never sent.
 `service/external/TradingViewRetryService`:
 
 - `enqueue` (`:56`) — outbox pattern, caller's tx; `enqueueDead` (`:102`) —

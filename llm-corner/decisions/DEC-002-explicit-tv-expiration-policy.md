@@ -35,3 +35,13 @@ and replay it unchanged. Customer-payment first purchases, renewals, and
 restorations keep the one-day protection; trials, admin actions, lifecycle
 syncs, Direct Extend, and renames match the database/operator date exactly.
 Lifetime stays unbuffered under either policy.
+
+The policy and all payload-relevant values are snapshotted into the event.
+Before publishing, activation-producing transactions stage that final DTO in
+the single PENDING ACTIVATE retry slot with a fresh command ID. Async delivery
+locks the slot and sends only if the ID still matches; Direct Extend and
+synchronous grants use the same slot. This is required because re-reading the
+subscription in an async listener can combine an old policy with newer state,
+and snapshotting alone cannot prevent an old event from arriving after a newer
+Direct command. Row-lock serialization guarantees that, whichever delivery
+starts first, the newest staged command is the final bot write.

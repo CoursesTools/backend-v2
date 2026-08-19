@@ -41,7 +41,8 @@ All paths relative to `src/main/java/com/winworld/coursestools/` unless noted.
   partner code (`isPartnershipCode()`); optional `subscriptionType` + `tier` scoping.
 - `TradingViewRetryJob` (`entity/TradingViewRetryJob.java:32`): outbox-style
   retry row — type ACTIVATE/RENAME, status PENDING/DEAD, jsonb payload,
-  `nextAttemptAt`, `attempts`, `lastError`, `forceRetryCount`.
+  `nextAttemptAt`, `attempts`, `lastError`, `forceRetryCount`, and an optional
+  ACTIVATE `commandId` used to reject superseded async delivery.
 - `TierIndicatorPermission`: allowlist row (tier, indicator, subscription_type);
   no rows for a tier = unrestricted (PRO model).
 - `Alert`: catalog of alert definitions (type/broker/tf/event/asset/indicator);
@@ -74,6 +75,7 @@ All paths relative to `src/main/java/com/winworld/coursestools/` unless noted.
 | `V12__tv_retry_force_retry_count.sql` | Add force_retry_count to retry jobs. |
 | `V13__custom_cashback_columns.sql` | custom_cashback1/2 overrides on user_partnership. |
 | `V14__fix_lifetime_expiry_year.sql` | Lifetime sentinel 9999-12-31 -> 2100-12-31 (TV rejects 9999) + patch retry-job payloads, set isLifetime. |
+| `V15__tv_activation_command_id.sql` | Add nullable command_id to retry jobs so new ACTIVATE commands are ordered while legacy queued rows remain replayable. |
 
 ## Schedulers
 
@@ -102,7 +104,7 @@ Async infra: `@EnableAsync` (`CoursesToolsApplication.java:13`) + executor in
 | Event | Published by | Listener(s) | Effect |
 |---|---|---|---|
 | `UserCreateEvent` (id, forwardedFor, email, generatedPassword) | `service/AuthService.java:73` (signup), `:94` (Google signup) | `listener/UserCreateListener.java:40` `setUserRegion` (@Async @EventListener, REQUIRES_NEW): GeoLocation lookup -> `user_profile.country_code`; `:48` `sendNotificationEmail` (@Async @EventListener): welcome emails via message builders. | Region + welcome email after registration. |
-| `SubscriptionChangeStatusEvent` (email, tradingViewUsername, userSubscriptionId, eventType, tradingViewExpirationPolicy) | Subscription and deactivation services; payment events select CUSTOMER_PAYMENT_BUFFER, every other publisher selects EXACT | `SubscriptionChangeStatusListener.activateUserSubscription` (@TransactionalEventListener @Async, REQUIRES_NEW): for CREATED/TRIAL_CREATED/EXTENDED/RESTORED, builds the policy-specific payload, calls TV bot, surfaces permanent 404 as DEAD, and marks GRANTED. | TV access grant is post-commit and its expiration policy is explicit at every publisher (DEC-002). |
+| `SubscriptionChangeStatusEvent` (identity + tier/expiry/lifetime snapshot, subscription/user IDs, eventType, policy, activationCommandId) | Subscription and deactivation services; payment events select CUSTOMER_PAYMENT_BUFFER, every other publisher selects EXACT; activation publishers stage the final DTO in the transaction | `SubscriptionChangeStatusListener.activateUserSubscription` (@TransactionalEventListener @Async, REQUIRES_NEW): locks subscription then PENDING command, rejects superseded/mismatched snapshots, calls TV bot, converts permanent 404 to DEAD, and safely reconciles PENDING→GRANTED. | TV access remains post-commit, but payload and ordering are durable: the latest command wins across payment/admin/Direct/retry paths (DEC-002). |
 | `UserAlertsChangeEvent` (telegramId) | `service/AlertService.java:146,164,172` (alert subscribe/unsubscribe paths) | `listener/UserAlertChangeListener.java:30` (@TransactionalEventListener @Async): POST to alert bot `${urls.alert-bot}` with telegramId. | Alert bot re-syncs the user's alert set. |
 
 `SubscriptionEventType` values: CREATED, RESTORED, EXTENDED, TRIAL_CREATED,
@@ -123,6 +125,9 @@ Trial length: `subscription.ct-pro.trial.days: 7` (`application.yml:103`).
 - Retry-job enqueue is transactional with its caller (outbox pattern): rollback
   of the producing tx also rolls back the retry row
   (`service/external/TradingViewRetryService.java:50-56`).
+- ACTIVATE producers stage before commit and delivery locks subscription then
+  retry row. Preserve that lock order: reversing it can deadlock a producer
+  that already mutated the subscription and is waiting to stage its command.
 - Paid and trial hourly queries are disjoint. This prevents the paid job from
   moving a trial to GRACE_PERIOD before the trial job sees it; old stranded
   PENDING/GRACE_PERIOD trials are picked up by the broadened trial query.
