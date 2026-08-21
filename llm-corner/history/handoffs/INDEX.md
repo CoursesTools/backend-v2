@@ -16,7 +16,10 @@ in this same directory.
   <summary>.
 -->
 
-- **`2026-08-19-tv-activation-ordering-followup.md`** — current entry point.
+- **`2026-08-21-trial-activation-reconciliation.md`** — current entry point.
+  PR #38 is deployed; precision-safe activation and aged-PENDING recovery
+  repaired all ten affected trials, now GRANTED with fresh seven-day expiry.
+- `2026-08-19-tv-activation-ordering-followup.md` — previous entry point.
   PR #37 now stages command-tokened activation snapshots so the newest
   payment/admin/Direct command wins despite async delivery order; 94 tests pass.
 - `2026-08-19-subscription-expiry-and-direct-tv-extend.md` — previous entry

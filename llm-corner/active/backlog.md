@@ -15,6 +15,10 @@ Format:
 - **[Severity]** <one-line description>. Source: <where it came from>.
 -->
 
+- **[Process]** GitHub Actions warns that Node.js 20 actions are being forced
+  onto Node.js 24 and `actions/setup-java@v4` is deprecated; upgrade the build,
+  checkout, cache, Java, and Docker action majors before compatibility is
+  removed. Source: production deployment run 32496528708, 2026-08-21.
 - **[Medium]** `OrderScheduler` is an empty stub — its legacy TODO asks
   for cleanup of orders never paid within some window, so unpaid orders
   currently accumulate forever (`scheduler/OrderScheduler.java:10`).
