@@ -41,13 +41,26 @@ code pointer.
 
 **Symptom:** after "stabilizing" a DTO's date format, every replay of previously stored JSON throws `InvalidFormatException`; retry-queue rows rot to DEAD and even admin force-retry can't recover them.
 **Root cause:** `@JsonFormat(pattern="yyyy-MM-dd'T'HH:mm:ss")` on `expiration` contextualizes the JSR-310 *deserializer* too, so legacy `trading_view_retry_jobs.payload` rows written with fractional seconds (the normal `now()`-derived shape) stop parsing. Tried during PR #33 and reverted before merge — it never shipped to master.
-**Fix:** never put a strict `@JsonFormat` on a DTO that is persisted-and-replayed (both TV bot DTOs carry a warning comment: `dto/external/ActivateTradingViewAccessDto.java:37-42`). Regression tests pin it: `ActivateTradingViewAccessDtoTest.deserializesLegacyFractionalSecondPayload` (test lines 59–68) exercises the real `ApplicationConfiguration().objectMapper()`.
+**Fix:** never put a strict `@JsonFormat` on a DTO that is persisted-and-replayed. Both TV DTO setters accept the legacy value and normalize it to whole seconds; regression tests exercise the real application ObjectMapper and actual retry replay path (DEC-004).
 
 ### `ISO_LOCAL_DATE_TIME` output shape is value-dependent
 
-**Symptom:** the same field serializes as `...T02:46:35.991576` (fractional), `...T15:41:38` (whole) or `...T15:41` (seconds dropped when `:00`) depending on the value — confusing log/DB diffs and any consumer doing strict parsing.
+**Symptom:** before DEC-004 the same field serialized as `...T02:46:35.991576` (fractional), `...T15:41:38` (whole) or `...T15:41` (seconds dropped when `:00`) depending on the value — confusing logs and the external consumer.
 **Root cause:** the app-wide ObjectMapper registers `LocalDateTimeSerializer(DateTimeFormatter.ISO_LOCAL_DATE_TIME)` (`config/ApplicationConfiguration.java:43-44`); that formatter emits nanos when nonzero and omits seconds when zero.
-**Fix:** accept it — the TV bot accepts all three forms (verified in prod). Do NOT "fix" it with `@JsonFormat` (see previous entry). Consumers of our JSON must parse leniently.
+**Fix:** canonicalize only the TV DTO value to whole seconds before serialization. Do not change the database timestamp, the app-wide mapper, or add strict `@JsonFormat`. Legacy fractional retry payloads remain readable and normalize before the outbound POST (DEC-004).
+
+### TV bot HTTP 2xx is not proof that TradingView access was applied
+
+**Symptom:** a burst of trial recovery POSTs returns 2xx and leaves no retry
+rows, but users still lack access; a later isolated manual extension works.
+**Root cause:** `/open` currently acknowledges `Содержимое сохранено в
+open.txt`. That proves a write to a shared mailbox file, not durable queueing or
+successful TradingView application; concurrent commands can overwrite one
+another.
+**Fix:** until the bot exposes an explicit per-request result and durable
+queue, treat 2xx as transport acceptance only. Recover users one at a time and
+verify actual TradingView access before sending the next. Do not enforce a new
+response DTO until the bot owner confirms its coordinated rollout.
 
 ### PostgreSQL rounds timestamps to microseconds before async reload
 

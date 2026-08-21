@@ -27,12 +27,8 @@ public class ActivateTradingViewAccessDto {
     private SubscriptionTier tier;
     @JsonProperty(value = "tv")
     private String tradingViewName;
-    // Serialized/deserialized by the app-wide ObjectMapper's ISO_LOCAL_DATE_TIME
-    // handling (see ApplicationConfiguration). Intentionally NOT pinned with a strict
-    // @JsonFormat pattern: the bot already accepts the fractional/whole-second/no-second
-    // forms this produces (verified in prod), and a strict pattern would also constrain
-    // DESERIALIZATION and reject legacy fractional-second rows already stored in the
-    // trading_view_retry_jobs.payload queue.
+    // The access server receives whole seconds only. The explicit setter keeps
+    // legacy fractional retry payloads readable while normalizing them before replay.
     private LocalDateTime expiration;
     private boolean isLifetime;
 
@@ -46,7 +42,7 @@ public class ActivateTradingViewAccessDto {
         this.email = email;
         this.tier = tier;
         this.tradingViewName = tradingViewName;
-        this.expiration = expiredAt;
+        setExpiration(expiredAt);
         this.isLifetime = isLifetime;
     }
 
@@ -87,6 +83,10 @@ public class ActivateTradingViewAccessDto {
         return exactGrant(
                 event.getEmail(), event.getTier(), event.getTradingViewUsername(),
                 event.getExpiration(), event.isLifetime());
+    }
+
+    public void setExpiration(LocalDateTime expiration) {
+        this.expiration = TradingViewTimestamp.wholeSeconds(expiration);
     }
 
     private static LocalDateTime bufferCustomerPaymentExpiration(LocalDateTime expiredAt, boolean isLifetime) {

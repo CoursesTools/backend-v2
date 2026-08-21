@@ -14,9 +14,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -80,10 +83,37 @@ class TradingViewRetryServiceTest {
         verify(repository).save(job);
     }
 
+    @Test
+    void processDueJobsNormalizesLegacyFractionalActivationBeforePosting() {
+        TradingViewRetryJob job = TradingViewRetryJob.builder()
+                .id(10)
+                .type(TradingViewRetryJobType.ACTIVATE)
+                .status(TradingViewRetryJobStatus.PENDING)
+                .payload("{\"email\":\"user@example.com\",\"tier\":\"ESSENTIALS\","
+                        + "\"tv\":\"tv-user\",\"expiration\":\"2026-08-28T15:16:22.987654\","
+                        + "\"lifetime\":false}")
+                .build();
+        when(repository.findDueForUpdate(any(), any(Integer.class))).thenReturn(List.of(job));
+        when(restTemplate.postForEntity(any(String.class), any(), eq(Void.class)))
+                .thenReturn(ResponseEntity.ok().build());
+
+        service().processDueJobs();
+
+        ArgumentCaptor<ActivateTradingViewAccessDto> dto =
+                ArgumentCaptor.forClass(ActivateTradingViewAccessDto.class);
+        verify(restTemplate).postForEntity(any(String.class), dto.capture(), eq(Void.class));
+        assertThat(dto.getValue().getExpiration())
+                .isEqualTo(LocalDateTime.of(2026, 8, 28, 15, 16, 22));
+        verify(repository).delete(job);
+    }
+
     private TradingViewRetryService service() {
-        return new TradingViewRetryService(
+        TradingViewRetryService service = new TradingViewRetryService(
                 repository, userDataService, restTemplate,
                 new ObjectMapper().findAndRegisterModules()
                         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS));
+        ReflectionTestUtils.setField(service, "activatingBotUrl", "http://tv.test/open");
+        ReflectionTestUtils.setField(service, "batchSize", 20);
+        return service;
     }
 }

@@ -12,7 +12,9 @@ The urgent TV-bot fixes shipped across two PRs: **PR #33** (`ea8ec83`, "+1 day T
 
 How TV access is granted today (all verified against current code):
 
-- The bot payload's `expiration` is a **naive `LocalDateTime`** serialized as `ISO_LOCAL_DATE_TIME` — no zone/offset — by the app-wide ObjectMapper (`dto/external/ActivateTradingViewAccessDto.java:37-43`, `config/ApplicationConfiguration.java:42-44`).
+- The bot payload's `expiration` is a **naive `LocalDateTime`** — no
+  zone/offset. DEC-004 now canonicalizes activation and rename wire values to
+  whole seconds without changing database precision or legacy retry readability.
 - Successful customer payments are padded by `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS = 1` in `customerPaymentGrant()`; every non-payment flow is exact (DEC-002). There is still **no bot-revoke channel**.
 - Bot endpoints (`.env:25-27`): activate `http://45.141.184.24:4320/open`, rename `/username_changer`, withdrawal `/withdrawal`.
 - Activation is async: `SubscriptionChangeStatusListener.activateUserSubscription` (`@TransactionalEventListener @Async`, REQUIRES_NEW) fires on CREATED / TRIAL_CREATED / EXTENDED / RESTORED, calls the bot, then flips the sub from `PENDING` to `GRANTED` (`listener/SubscriptionChangeStatusListener.java:31-36,50-78`).
@@ -29,6 +31,10 @@ How TV access is granted today (all verified against current code):
 ### Item 1 — unambiguous timestamp to the bot (needs bot-owner coordination)
 
 - **Problem:** `expiration` is offset-less. Backend writes UTC; the bot runs on Moscow-time infrastructure and can interpret the value as local time, cutting access up to ~3h early (`ActivateTradingViewAccessDto.java:20-30`). The +1d pad exists largely to mask this.
+- **Partial hardening shipped:** whole-second precision is now deterministic at
+  the two TV DTO boundaries, and fractional legacy retries normalize on replay
+  (DEC-004). This removes a parser ambiguity but does not add an offset or
+  prove that the bot applied the command.
 - **Why it matters:** the payment-only pad is still a full day. An unambiguous wire format lets it shrink to a few hours without risking paid access.
 - **Proposed fix:** agree a format with the bot owner — epoch seconds or ISO-8601 with explicit offset (`...Z`). Backend side: change the field type/serializer on both TV DTOs only (keep the app-wide ObjectMapper untouched). Then reduce `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS` to an hours-scale pad.
 - **Risk:** (a) coordinated deploy — the bot must accept the new format before backend ships; (b) stored retry payloads in `trading_view_retry_jobs.payload` replay the OLD format, so deserialization must stay backward-compatible (a strict `@JsonFormat` was already tried and reverted before merge for exactly this reason — see `ActivateTradingViewAccessDto.java:37-42` and the `docs/reference/gotchas.md` entry); (c) shrinking the pad before confirming the bot's parsing = early cutoffs for paying users.
@@ -69,7 +75,12 @@ How TV access is granted today (all verified against current code):
 
 ### Phase C — Item 1: unambiguous timestamp (blocked on bot owner)
 - [ ] Agree wire format + rollout order with bot owner (bot at 45.141.184.24:4320)
-- [ ] DTO-local serializer change, backward-compatible deserialization for stored retry payloads
+- [x] Normalize both DTOs to whole seconds with backward-compatible
+  deserialization for stored retry payloads (DEC-004)
+- [ ] Replace the offset-less value only after coordinated bot support for an
+  explicit offset/epoch format
+- [ ] Enforce the proposed response body only after the bot owner confirms its
+  per-request result/queue rollout
 - [ ] Shrink `CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS` only after prod verification of bot parsing
 - Verify: prod log line `TV activation succeeded ... expiration=` shows new format; replay one legacy retry row
 

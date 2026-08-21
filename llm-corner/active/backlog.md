@@ -15,6 +15,13 @@ Format:
 - **[Severity]** <one-line description>. Source: <where it came from>.
 -->
 
+- **[High]** The TradingView access service currently acknowledges that an
+  `/open` command was written to a shared `open.txt`, not that the command was
+  durably queued or applied. Concurrent commands can overwrite each other and
+  HTTP 2xx is not proof of granted access. Bot owner is implementing an
+  explicit per-request result/queue contract; backend response enforcement is
+  blocked until that rollout is confirmed. Source: August 2026 trial recovery
+  incident and controlled whole-second probe, 2026-08-21.
 - **[Medium]** `OrderScheduler` is an empty stub — its legacy TODO asks
   for cleanup of orders never paid within some window, so unpaid orders
   currently accumulate forever (`scheduler/OrderScheduler.java:10`).
