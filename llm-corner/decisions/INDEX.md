@@ -18,6 +18,7 @@ re-litigate this question without the record?"
 
 | ID | Title | Date | Status |
 |---|---|---|---|
+| DEC-003 | Reconcile orphaned PENDING TradingView activations (`DEC-003-reconcile-orphaned-pending-activations.md`) | 2026-08-21 | ACCEPTED |
 | DEC-002 | Explicit TradingView expiration policy (`DEC-002-explicit-tv-expiration-policy.md`) | 2026-08-19 | ACCEPTED |
 | DEC-001 | llm-corner documentation system (`DEC-001-llm-corner-structure.md`) | 2026-07-12 | ACCEPTED |
 

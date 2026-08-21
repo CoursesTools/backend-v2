@@ -55,6 +55,17 @@ class ActivatingSubscriptionServiceTest {
                 .isEqualTo(TradingViewDeliveryStatus.DELIVERED);
     }
 
+    @Test
+    void activationReturnsDeliveredAfterBodylessNoContentResponse() {
+        var dto = activateDto();
+        ReflectionTestUtils.setField(service, "activatingBotUrl", "http://tv-bot/open");
+        when(restTemplate.postForEntity(eq("http://tv-bot/open"), eq(dto), eq(Void.class)))
+                .thenReturn(ResponseEntity.noContent().build());
+
+        assertThat(service.activateTradingViewAccess(1, dto))
+                .isEqualTo(TradingViewDeliveryStatus.DELIVERED);
+    }
+
     // The specific TradingViewUserNotFoundException overload must RETHROW so the caller
     // (async listener -> enqueueDead; admin/self-bind -> 400) handles the permanent 404,
     // instead of the generic fallback swallowing it into a transient PENDING retry.

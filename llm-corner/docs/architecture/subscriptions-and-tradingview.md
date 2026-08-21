@@ -97,6 +97,10 @@ admin/payment/Direct command therefore supersedes an older async event instead
 of inheriting its policy. A superseded event may still reconcile PENDING to
 GRANTED only when its committed snapshot still matches; it never revives
 GRACE_PERIOD/TERMINATED state.
+Snapshot expiration comparison honors PostgreSQL's microsecond timestamp
+precision. A matching command token with a genuine snapshot mismatch is an
+invariant failure: the command is moved to DEAD with field-level diagnostics
+instead of being deleted.
 `GRACE_PERIOD_START/END` and `TRIAL_ENDED` trigger **no bot call — there is
 no revoke channel**; access dies when the expiration sent earlier passes.
 The email-notification listener body is currently commented out (`:82-84`).
@@ -166,6 +170,18 @@ transient failure keeps the final payload; a stale command ID is never sent.
 - `onUserTradingViewNameChanged` (`:147`) — patches PENDING **and** DEAD
   ACTIVATE payloads when a user renames, so retries target the new handle.
 
+### Orphaned PENDING reconciliation
+
+At application startup and every five minutes,
+`PendingSubscriptionReconciliationService` scans subscriptions that have
+remained PENDING for at least 15 minutes. Each candidate is revalidated under
+the user -> subscription -> ACTIVATE lock order. Existing PENDING jobs remain
+owned by the retry scheduler and DEAD jobs remain visible to admins. A current
+candidate with no command is re-staged: trials receive a fresh seven-day exact
+grant, paid subscriptions preserve DB expiry and restore the customer-payment
+buffer, and MANUAL grants remain exact. Superseded rows are never revived.
+Gauge: `subscriptions.stuck_pending.count`.
+
 Admin API (`controller/AdminController.java:115-139`, ADMIN role):
 `GET /api/v1/admin/tv-retry/jobs` (filter + pageable, sort whitelist, page
 ≤ 100), `GET .../jobs/{id}`, `POST .../jobs/{id}/retry`,
@@ -179,15 +195,16 @@ Admin API (`controller/AdminController.java:115-139`, ADMIN role):
 | `SubscriptionScheduler.cleanupExpiredTrialSubscriptions` | `0 0 * * * *` | every non-terminated expired trial (PENDING/GRANTED/GRACE_PERIOD) → TERMINATED; unsubscribes alerts |
 | `SubscriptionScheduler.cleanupExpiredGracePeriodSubscriptions` | `0 0 * * * *` | past-grace reconciliation → TERMINATED |
 | `TradingViewRetryScheduler.pollDueJobs` | `0 * * * * *` (every minute) | drains due PENDING retry jobs |
+| `SubscriptionScheduler.reconcileStuckPendingSubscriptions` | `0 */5 * * * *` | re-stages orphaned PENDING subscriptions older than 15 minutes |
 
 `scheduler/OrderScheduler.java` is an empty TODO stub (unpaid-order cleanup
 was never built).
 
 ## Gotchas
 
-- `PENDING` is a *normal* post-payment state; it means "TV activation not
-  yet confirmed", not "unpaid". If the async listener dies before saving,
-  a sub can linger in `PENDING` while the retry queue holds the bot call.
+- `PENDING` is a *normal short-lived* post-payment state; it means "TV
+  activation not yet confirmed", not "unpaid". A durable command is retried;
+  an orphan older than 15 minutes is rebuilt by the reconciler.
 - All expiry math is UTC (`LocalDateTime.now(ZoneOffset.UTC)`); the +1 day
   payment-only bot pad exists precisely because the bot side is *not*
   UTC-aware.

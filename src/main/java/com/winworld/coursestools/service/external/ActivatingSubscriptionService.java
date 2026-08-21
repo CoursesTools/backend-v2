@@ -29,8 +29,9 @@ public class ActivatingSubscriptionService {
 
     @Retry(name = "default", fallbackMethod = "handleActivationFallback")
     public TradingViewDeliveryStatus activateTradingViewAccess(Integer userId, ActivateTradingViewAccessDto dto) {
+        org.springframework.http.ResponseEntity<Void> response;
         try {
-            restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
+            response = restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
             // Bot said the TradingView user doesn't exist. Permanent input error:
             // TradingViewUserNotFoundException extends DataValidationException, which the
@@ -46,8 +47,8 @@ public class ActivatingSubscriptionService {
                     e.getStatusCode(), e.getResponseBodyAsString());
             throw e;
         }
-        log.info("TV activation succeeded: userId={}, name={}, tier={}, expiration={}",
-                userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration());
+        log.info("TV activation succeeded: userId={}, name={}, tier={}, expiration={}, status={}",
+                userId, dto.getTradingViewName(), dto.getTier(), dto.getExpiration(), response.getStatusCode());
         return TradingViewDeliveryStatus.DELIVERED;
     }
 
