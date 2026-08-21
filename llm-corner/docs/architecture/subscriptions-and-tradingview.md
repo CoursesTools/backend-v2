@@ -110,8 +110,8 @@ The email-notification listener body is currently commented out (`:82-84`).
 `POST ${urls.activating-bot}` (env `ACTIVATING_BOT_URL` =
 `http://45.141.184.24:4320/open`) with `ActivateTradingViewAccessDto`:
 `email`, `tier`, `tv` (`@JsonProperty` for `tradingViewName`),
-`expiration` (naive ISO-8601 `LocalDateTime`, serializer pinned to
-`ISO_LOCAL_DATE_TIME` in `config/ApplicationConfiguration.java:38-49`),
+`expiration` (naive ISO-8601 `LocalDateTime`, normalized at the DTO boundary
+to whole-second precision before the app-wide serializer sees it),
 `isLifetime`. Rename: `POST ${urls.change-tradingview-bot}`
 (`.../username_changer`) with `ChangeTradingViewNameDto`: `old`, `new`,
 `tier`, `expiration`, `isLifetime` — sent from
@@ -126,6 +126,8 @@ syncs, Direct Extend, and renames use exact factories. The pad protects paid
 users from the offset-less bot timestamp and late renewal delivery without
 silently extending manual access. The final value is persisted to the retry
 queue, so replay never compounds it. Lifetime is never padded (DEC-002).
+For both activation and rename, buffering is applied before whole-second wire
+normalization; the database expiry is not truncated (DEC-004).
 
 ## Failure handling & durable retry queue
 
@@ -220,5 +222,6 @@ was never built).
   Stripe subs are rejected with a 400.
 - Don't add a strict `@JsonFormat` to the DTO `expiration` fields: it would
   also constrain deserialization and poison legacy fractional-second
-  payloads already stored in `trading_view_retry_jobs.payload`
-  (`ActivateTradingViewAccessDto.java:37-43`).
+  payloads already stored in `trading_view_retry_jobs.payload`. The DTO
+  setters intentionally accept those values and normalize them to whole
+  seconds before replay (DEC-004).

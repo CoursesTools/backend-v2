@@ -19,8 +19,7 @@ public class ChangeTradingViewNameDto {
     @JsonProperty("new")
     private String newName;
     private SubscriptionTier tier;
-    // See ActivateTradingViewAccessDto.expiration: deliberately no strict @JsonFormat,
-    // to keep legacy retry-queue payloads deserializable.
+    // Whole-second wire precision; the setter also normalizes legacy retry JSON.
     private LocalDateTime expiration;
     private boolean isLifetime;
 
@@ -34,7 +33,7 @@ public class ChangeTradingViewNameDto {
         this.oldName = oldName;
         this.newName = newName;
         this.tier = tier;
-        this.expiration = expiredAt;
+        setExpiration(expiredAt);
         this.isLifetime = isLifetime;
     }
 
@@ -52,5 +51,9 @@ public class ChangeTradingViewNameDto {
                 tier,
                 expiredAt,
                 isLifetime);
+    }
+
+    public void setExpiration(LocalDateTime expiration) {
+        this.expiration = TradingViewTimestamp.wholeSeconds(expiration);
     }
 }

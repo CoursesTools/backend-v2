@@ -16,6 +16,10 @@ in this same directory.
   <summary>.
 -->
 
+- **`2026-08-21-tv-whole-second-expiration.md`** — current entry point.
+  PR #40 canonicalizes every TV activation/rename expiration to whole seconds
+  without changing DB entitlement math; isolated recovery is proceeding one
+  user at a time because the remote shared-file 2xx is not proof of access.
 - **`2026-08-19-tv-activation-ordering-followup.md`** — current entry point.
   PR #37 now stages command-tokened activation snapshots so the newest
   payment/admin/Direct command wins despite async delivery order; 94 tests pass.

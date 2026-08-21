@@ -30,9 +30,11 @@ Body: `ActivateTradingViewAccessDto`
   "expiration": "2026-08-12T21:00:00", "isLifetime": false }
 ```
 
-- `expiration` is a **naive** ISO local date-time (no offset), serialized by
-  the app-wide ObjectMapper; deliberately no strict `@JsonFormat` (DTO
-  comment, lines 37-42).
+- `expiration` is a **naive** ISO local date-time (no offset) at whole-second
+  precision. Both TV DTOs truncate at their boundary; database precision is
+  unchanged. There is deliberately no strict `@JsonFormat`, so legacy
+  fractional retry JSON remains readable and normalizes before replay
+  (DEC-004).
 - Successful customer payments use `customerPaymentGrant(...)`, which pads
   non-lifetime expiry by one day. Trials, admin actions, lifecycle syncs, and
   Direct Extend use `exactGrant(...)` with no pad (DEC-002).
@@ -48,7 +50,8 @@ Body: `ChangeTradingViewNameDto`
 (`dto/external/ChangeTradingViewNameDto.java:88-97`): `old`, `new`, `tier`,
 `expiration` (exact DB expiration via `rename(...)`), `isLifetime`.
 Called from `service/user/UserSocialService.java:99` when a user changes
-their TradingView name.
+their TradingView name. Rename expiration uses the same whole-second wire
+normalization as activation.
 
 ### `POST /withdrawal` — partner cashback payout request
 
@@ -78,15 +81,19 @@ only logged (`UserTransactionService.java:92-94`).
 ## Binding invariants on our side
 
 - **The bot never answers queries.** All three endpoints are write-only
-  commands; the backend cannot confirm a grant landed. Success = 2xx, nothing
-  more (verified: only `postForEntity` calls exist against these URLs).
+  commands; the backend cannot confirm a grant landed. During the August 2026
+  incident `/open` returned HTTP 200 with `Содержимое сохранено в open.txt`:
+  evidence of a shared-file write, not evidence that TradingView applied the
+  command. Until the bot owner deploys an explicit per-request outcome/queue
+  contract, 2xx means transport acceptance only.
 - **No revoke channel.** Expired access is only cut off by the expiration
   timestamp the bot already holds. Payment grants keep a one-day safety pad;
   non-payment commands intentionally replace it with their exact selected
   expiration.
-- **Naive timestamps + likely Moscow tz on the bot side** — never change the
-  wire format without bot-owner coordination. The one-day safety pad remains
-  only for real customer payments.
+- **Naive timestamps + likely Moscow tz on the bot side** — seconds are now
+  always present and fractions are removed (DEC-004), but the value still has
+  no offset. Never add an offset or shrink the one-day payment safety pad
+  without bot-owner coordination.
 - Final exact-or-buffered expiration is persisted into retry payload JSON, so
   replays do not transform or compound it.
 
@@ -97,4 +104,6 @@ bot's maintainer manually; record the contact/channel here.
 
 ## Change history
 
+- 2026-08-21 — expiration canonicalized to whole seconds; documented that the
+  current shared-file 2xx acknowledgement is not proof of applied access.
 - 2026-07-12 — file created from verified code.

@@ -108,6 +108,11 @@ stay in this list as struck-through with their retirement DEC. -->
   receive seven fresh days; paid expiry is preserved.
   `listener/SubscriptionChangeStatusListener.java`,
   `service/PendingSubscriptionReconciliationWorker.java`.
+- **C17.** Every TradingView activation and rename command sends expiration at
+  whole-second precision. Paid buffering is applied before normalization;
+  subscription/database precision is unchanged. Legacy fractional retry JSON
+  remains readable and is normalized during deserialization before replay.
+  See DEC-004 and `dto/external/TradingViewTimestamp.java`.
 
 Changing a contract requires: a decision record in
 `../../decisions/`, the architecture doc update, and this file's

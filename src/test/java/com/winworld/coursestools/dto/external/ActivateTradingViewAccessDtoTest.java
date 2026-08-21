@@ -49,28 +49,40 @@ class ActivateTradingViewAccessDtoTest {
     }
 
     @Test
-    void retryQueueRoundTrip_preservesValue_includingFractionalSeconds() throws Exception {
-        // The retry queue serializes the padded dto to trading_view_retry_jobs.payload and
-        // later deserializes it back; that round-trip must be lossless for now()-derived
-        // (fractional-second) expiries, which are the common case for trials.
+    void customerPaymentGrant_appliesBufferThenNormalizesToWholeSeconds() throws Exception {
         LocalDateTime fractional = LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000);
         var dto = ActivateTradingViewAccessDto.customerPaymentGrant(
                 "e@x.com", SubscriptionTier.PRO, "nick", fractional, false);
         String json = mapper.writeValueAsString(dto);
         var back = mapper.readValue(json, ActivateTradingViewAccessDto.class);
         assertThat(back.getExpiration()).isEqualTo(dto.getExpiration());
-        assertThat(back.getExpiration()).isEqualTo(fractional.plusDays(1));
+        assertThat(back.getExpiration()).isEqualTo(
+                LocalDateTime.of(2026, 7, 18, 2, 46, 35));
+        assertThat(json).contains("\"expiration\":\"2026-07-18T02:46:35\"");
+        assertThat(json).doesNotContain("991576");
         assertThat(back.getTradingViewName()).isEqualTo("nick");
     }
 
     @Test
     void deserializesLegacyFractionalSecondPayload() throws Exception {
-        // Guards against re-introducing a strict @JsonFormat: legacy queue rows written by the
-        // old serializer carry fractional seconds and must still parse after deploy.
+        // Legacy queue rows remain readable, but the DTO normalizes them before delivery.
         String legacy = "{\"email\":\"e@x.com\",\"tier\":\"PRO\",\"tv\":\"nick\","
                 + "\"expiration\":\"2026-07-17T02:46:35.991576\",\"lifetime\":false}";
         var dto = mapper.readValue(legacy, ActivateTradingViewAccessDto.class);
-        assertThat(dto.getExpiration()).isEqualTo(LocalDateTime.of(2026, 7, 17, 2, 46, 35, 991_576_000));
+        assertThat(dto.getExpiration()).isEqualTo(LocalDateTime.of(2026, 7, 17, 2, 46, 35));
+        assertThat(mapper.writeValueAsString(dto)).contains(
+                "\"expiration\":\"2026-07-17T02:46:35\"");
         assertThat(dto.getTradingViewName()).isEqualTo("nick");
+    }
+
+    @Test
+    void exactGrant_normalizesTrialExpirationWithoutChangingInputValue() {
+        LocalDateTime fractional = LocalDateTime.of(2026, 8, 28, 15, 16, 23, 482_827_000);
+
+        var dto = ActivateTradingViewAccessDto.exactGrant(
+                "e@x.com", SubscriptionTier.PRO, "nick", fractional, false);
+
+        assertThat(dto.getExpiration()).isEqualTo(LocalDateTime.of(2026, 8, 28, 15, 16, 23));
+        assertThat(fractional.getNano()).isEqualTo(482_827_000);
     }
 }
