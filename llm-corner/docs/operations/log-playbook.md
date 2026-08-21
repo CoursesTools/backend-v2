@@ -44,6 +44,8 @@ Grep the `message` text; the source line is where to read next.
 | `TV activation failed permanently (nickname not found)` | Bot 404 = nickname doesn't exist on TradingView. Subscription is still set GRANTED and a DEAD retry row is created for admin (`listener/SubscriptionChangeStatusListener.java:71-77`) | Operator must fix the nickname via the admin TV retry page. |
 | `TV retry DEAD-enqueued` / `TV retry job moved to DEAD after` | Retry queue gave up (`service/external/TradingViewRetryService.java:135,207`) | Admin action required (force-retry endpoint). |
 | `TV retry ACTIVATE succeeded` / `TV retry RENAME succeeded` | Durable retry drained OK (`TradingViewRetryService.java:190,196`) | Incident self-healed. |
+| `TV activation snapshot mismatch moved current command to DEAD` | Current command no longer matches persisted subscription beyond DB timestamp precision | Inspect the field-level `mismatch=` detail; admin action is visible instead of silently lost. |
+| `Re-staged orphaned PENDING subscription activation` | Startup/five-minute reconciler rebuilt a missing activation command | Follow the same user/subscription for `TV activation succeeded` or a visible retry row. |
 | `Error while checking TradingView name` | Signup-time nickname verification against tradingview.com/u/{name} failed (`service/external/TradingViewService.java:35`) | Distinguish TV being down vs. genuinely bad nickname. |
 | `Processing Stripe webhook: <type>` | Entry point of every Stripe event (`service/payment/impl/StripePaymentService.java:228`) | Follow subsequent lines from the same thread. |
 | `Stripe subscription <id> synced to local subscription <id>` | Lifecycle sync applied (`service/SubscriptionService.java:232`) | — |

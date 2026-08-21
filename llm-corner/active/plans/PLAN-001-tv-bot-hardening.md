@@ -40,12 +40,11 @@ How TV access is granted today (all verified against current code):
 - **Proposed fix (preferred):** on `GRACE_PERIOD_START`, push a bot grant with `expiration = expiredAt + GRACE_PERIOD_DAYS` — as a **separate listener handler**, NOT by adding `GRACE_PERIOD_START` to `EVENTS_FOR_ACTIVATE` (the existing handler ends by setting status `GRANTED`, `SubscriptionChangeStatusListener.java:76`, which would corrupt the grace state). Alternatives: (b) grace-cover only Stripe-backed non-trial subs (dunning is a Stripe concept; `paymentMethod` is on the sub); (c) handle `invoice.payment_failed` webhooks to grant only when dunning is genuinely active — most precise, most work (webhook handler currently only processes `invoice.payment_succeeded` + `customer.subscription.updated/deleted`, `StripePaymentService.java:58-59,227-231`).
 - **Risk:** every expired sub (including deliberate cancellations) keeps bot access for the full 7-day grace — free-access expansion with no revoke channel to claw it back. This is a product/revenue call: TODO(operator) — decide grace-cover-all vs Stripe-only vs payment_failed-triggered.
 
-### Item 5 — reconciler for subscriptions stuck in PENDING
+### Item 5 — reconciler for subscriptions stuck in PENDING (resolved 2026-08-21)
 
-- **Problem:** `GRANTED` is only ever set by the async listener after commit. The Spring event is in-memory: if the app restarts/crashes between the producing commit (payment webhook, trial creation) and the async listener run, the event is gone and the sub stays `PENDING` forever. No scheduler touches `PENDING` — the expiry cron only queries `GRANTED` (`SubscriptionService.java:155-157`); `SubscriptionScheduler` covers expiry/trial/past-grace only. A pre-existing TODO asks for exactly this job (`scheduler/SubscriptionScheduler.java:18`, in Russian: "make a job that grants accesses to those it didn't").
+- **Resolution:** startup and five-minute reconciliation now finds commandless PENDING subscriptions older than 15 minutes, revalidates them under locks, and re-stages activation. Recovered trials receive seven fresh days; paid expiry remains unchanged.
 - **Why it matters:** a paid customer with no access and no self-healing path; today it's found only via support tickets.
-- **Proposed fix:** scheduled reconciler that finds `PENDING` subs with `updatedAt` older than a cutoff (~15 min; `updatedAt` exists via `Auditable`, `entity/base/Auditable.java:25-29`), re-runs the activation flow (bot grant via the existing `@Retry` + durable-queue machinery), and sets `GRANTED`. Mirror the existing `SubscriptionStateReconciliationService` pattern including its Micrometer gauge (`subscriptions.past_grace_period.count` precedent, `service/SubscriptionStateReconciliationService.java:22-38`) with a `subscriptions.stuck_pending.count` gauge so Grafana alerts before users do.
-- **Risk:** (a) cutoff too short re-activates subs the normal async path is still processing (double bot call — the bot `/open` endpoint appears idempotent for the same payload, but verify with bot owner); (b) must exclude `PENDING` rows superseded by a newer subscription for the same user; (c) deliberately skip = do NOT blindly re-fire emails — reconcile access only.
+- **Implemented safeguards:** the 15-minute cutoff leaves the normal async path time to finish; candidates are locked and revalidated, rows superseded by another entitlement are skipped, and existing PENDING/DEAD commands remain under retry/admin ownership. Recovery publishes only the access event and does not replay purchase emails.
 
 ### Deferred cleanup — withdrawal `@Retry` never applies
 
@@ -56,9 +55,9 @@ How TV access is granted today (all verified against current code):
 
 ## 3. Phases
 
-### Phase A — Item 5: PENDING reconciler (no external coordination; do first)
-- [ ] Repo query + reconciler service (`stuck_pending` gauge, cutoff-aged `PENDING` scan, re-grant, set `GRANTED`) modeled on `SubscriptionStateReconciliationService`
-- [ ] Cron entry in `configs/scheduler.yml`; tests for cutoff/supersession edge cases
+### Phase A — Item 5: PENDING reconciler (complete)
+- [x] Repo query + reconciler service (`subscriptions.stuck_pending.count`, cutoff-aged PENDING scan, command re-stage)
+- [x] Startup + five-minute cron; tests for trial/payment policy, existing jobs, and supersession
 - Files: `service/`, `scheduler/`, `repository/user/UserSubscriptionRepository.java`, `configs/scheduler.yml`
 - Verify: kill app between webhook commit and listener; confirm reconciler grants on next tick; gauge visible in Grafana (ct-logs Prometheus :9090)
 

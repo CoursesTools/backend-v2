@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -682,7 +683,12 @@ public class SubscriptionService {
     // ------------------------------------------------------------------------
 
     private LocalDateTime getNow() {
-        return LocalDateTime.now(ZoneOffset.UTC);
+        // PostgreSQL TIMESTAMPTZ stores microseconds. Canonicalize before both
+        // persistence and event snapshotting so an after-commit reload cannot
+        // differ from its command by sub-microsecond clock precision.
+        return LocalDateTime.now(ZoneOffset.UTC)
+                .plusNanos(500)
+                .truncatedTo(ChronoUnit.MICROS);
     }
 
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
@@ -721,7 +727,7 @@ public class SubscriptionService {
         return userMapper.toDto(userSubscriptionService.save(userSubscription));
     }
 
-    private void publishSubscriptionEvent(
+    void publishSubscriptionEvent(
             User user,
             SubscriptionEventType eventType,
             UserSubscription subscription,

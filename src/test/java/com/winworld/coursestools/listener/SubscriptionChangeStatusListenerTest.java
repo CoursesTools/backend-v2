@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
@@ -75,6 +76,47 @@ class SubscriptionChangeStatusListenerTest {
                 ArgumentCaptor.forClass(ActivateTradingViewAccessDto.class);
         verify(activatingSubscriptionService).activateTradingViewAccess(eq(7), payload.capture());
         assertThat(payload.getValue().getExpiration()).isEqualTo(databaseExpiration);
+    }
+
+    @Test
+    void postgresSubMicrosecondRounding_doesNotDiscardCurrentActivation() {
+        LocalDateTime persistedExpiration = LocalDateTime.of(2026, 8, 28, 4, 59, 12, 245_170_000);
+        LocalDateTime eventExpiration = persistedExpiration.minusNanos(211);
+        var fixture = fixture(persistedExpiration, Plan.MONTH);
+        var event = eventSnapshot(
+                fixture.subscription(), eventExpiration, SubscriptionEventType.TRIAL_CREATED,
+                TradingViewExpirationPolicy.EXACT, "command-99");
+        when(activatingSubscriptionService.activateTradingViewAccess(
+                eq(7), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(TradingViewDeliveryStatus.DELIVERED);
+
+        listener().activateUserSubscription(event);
+
+        verify(activatingSubscriptionService).activateTradingViewAccess(
+                eq(7), org.mockito.ArgumentMatchers.any());
+        verify(tradingViewRetryService).completeActivation(
+                org.mockito.ArgumentMatchers.any(TradingViewRetryJob.class));
+        assertThat(fixture.subscription().getStatus()).isEqualTo(SubscriptionStatus.GRANTED);
+    }
+
+    @Test
+    void currentCommandWithMaterialSnapshotMismatch_movesToDeadInsteadOfDisappearing() {
+        LocalDateTime persistedExpiration = LocalDateTime.of(2026, 8, 28, 4, 59, 12, 245_170_000);
+        var fixture = fixture(persistedExpiration, Plan.MONTH);
+        var event = eventSnapshot(
+                fixture.subscription(), persistedExpiration.minusNanos(1_001),
+                SubscriptionEventType.TRIAL_CREATED,
+                TradingViewExpirationPolicy.EXACT, "command-99");
+
+        listener().activateUserSubscription(event);
+
+        verify(activatingSubscriptionService, never()).activateTradingViewAccess(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(tradingViewRetryService).markActivationDead(
+                org.mockito.ArgumentMatchers.any(TradingViewRetryJob.class), anyString());
+        verify(tradingViewRetryService, never()).completeActivation(
+                org.mockito.ArgumentMatchers.any(TradingViewRetryJob.class));
+        assertThat(fixture.subscription().getStatus()).isEqualTo(SubscriptionStatus.PENDING);
     }
 
     @Test

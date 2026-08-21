@@ -78,6 +78,14 @@ public class TradingViewRetryService {
                 .filter(job -> commandId != null && commandId.equals(job.getCommandId()));
     }
 
+    @Transactional(readOnly = true)
+    public boolean hasPendingOrDeadActivation(Integer userId) {
+        return repository.existsByUserIdAndTypeAndStatus(
+                        userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.PENDING)
+                || repository.existsByUserIdAndTypeAndStatus(
+                        userId, TradingViewRetryJobType.ACTIVATE, TradingViewRetryJobStatus.DEAD);
+    }
+
     @Transactional(propagation = Propagation.REQUIRED)
     public void completeActivation(TradingViewRetryJob job) {
         repository.delete(job);
@@ -229,9 +237,9 @@ public class TradingViewRetryService {
             switch (job.getType()) {
                 case ACTIVATE -> {
                     var dto = objectMapper.readValue(job.getPayload(), ActivateTradingViewAccessDto.class);
-                    restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
-                    log.info("TV retry ACTIVATE succeeded: jobId={} tv={} exp={}",
-                            job.getId(), dto.getTradingViewName(), dto.getExpiration());
+                    var response = restTemplate.postForEntity(activatingBotUrl, dto, Void.class);
+                    log.info("TV retry ACTIVATE succeeded: jobId={} tv={} exp={} status={}",
+                            job.getId(), dto.getTradingViewName(), dto.getExpiration(), response.getStatusCode());
                 }
                 case RENAME -> {
                     var dto = objectMapper.readValue(job.getPayload(), ChangeTradingViewNameDto.class);

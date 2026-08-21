@@ -1,6 +1,7 @@
 package com.winworld.coursestools.scheduler;
 
 import com.winworld.coursestools.service.AlertService;
+import com.winworld.coursestools.service.PendingSubscriptionReconciliationService;
 import com.winworld.coursestools.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,10 +13,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class SubscriptionScheduler {
     private final SubscriptionService subscriptionService;
+    private final PendingSubscriptionReconciliationService pendingSubscriptionReconciliationService;
     private final AlertService alertService;
 
     //TODO последить за кол-вом пользователей, если будет много, то нужно будет оптимизировать
-    //TODO Сделать джобу, которая будет выдавать доступы тем, кому не выдала
     @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
     public void deactivateExpiredSubscriptions() {
         log.info("Deactivating expired subscriptions job start");
@@ -37,5 +38,12 @@ public class SubscriptionScheduler {
         log.info("Deactivating expired subscriptions with grace period job start");
         subscriptionService.deactivateExpiredGracePeriodSubscriptions();
         log.info("Deactivating expired subscriptions with grace period job end");
+    }
+
+    @Scheduled(cron = "${scheduler.subscription.stuck-pending-subscriptions}")
+    public void reconcileStuckPendingSubscriptions() {
+        log.info("Reconciling stuck PENDING subscriptions job start");
+        pendingSubscriptionReconciliationService.reconcileStuckPendingSubscriptions("scheduler");
+        log.info("Reconciling stuck PENDING subscriptions job end");
     }
 }

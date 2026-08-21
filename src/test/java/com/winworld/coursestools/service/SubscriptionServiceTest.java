@@ -234,8 +234,8 @@ class SubscriptionServiceTest {
         LocalDateTime after = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
 
         assertEquals(PaymentMethod.CRYPTO, existingSubscription.getPaymentMethod());
-        assertFalse(existingSubscription.getExpiredAt().isBefore(before));
-        assertFalse(existingSubscription.getExpiredAt().isAfter(after));
+        assertFalse(existingSubscription.getExpiredAt().isBefore(before.minusNanos(1_000)));
+        assertFalse(existingSubscription.getExpiredAt().isAfter(after.plusNanos(1_000)));
         verify(stripePaymentService).cancelSubscription(existingSubscription);
         verify(eventPublisher).publishEvent(event);
     }
@@ -273,8 +273,8 @@ class SubscriptionServiceTest {
 
         UserSubscription created = user.getSubscriptions().get(0);
         LocalDateTime after = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
-        assertFalse(created.getExpiredAt().isBefore(before));
-        assertFalse(created.getExpiredAt().isAfter(after));
+        assertFalse(created.getExpiredAt().isBefore(before.minusNanos(1_000)));
+        assertFalse(created.getExpiredAt().isAfter(after.plusNanos(1_000)));
     }
 
     @Test
@@ -348,8 +348,8 @@ class SubscriptionServiceTest {
         LocalDateTime upperBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
 
         UserSubscription paid = user.getSubscriptions().get(1);
-        assertFalse(paid.getExpiredAt().isBefore(lowerBound));
-        assertFalse(paid.getExpiredAt().isAfter(upperBound));
+        assertFalse(paid.getExpiredAt().isBefore(lowerBound.minusNanos(1_000)));
+        assertFalse(paid.getExpiredAt().isAfter(upperBound.plusNanos(1_000)));
         assertEquals(SubscriptionStatus.TERMINATED, trial.getStatus());
     }
 
@@ -404,8 +404,8 @@ class SubscriptionServiceTest {
         subscriptionService.updateUserSubscriptionAfterPayment(expired, order, user, Map.of());
         LocalDateTime upperBound = LocalDateTime.now(ZoneOffset.UTC).plusDays(30);
 
-        assertFalse(expired.getExpiredAt().isBefore(lowerBound));
-        assertFalse(expired.getExpiredAt().isAfter(upperBound));
+        assertFalse(expired.getExpiredAt().isBefore(lowerBound.minusNanos(1_000)));
+        assertFalse(expired.getExpiredAt().isAfter(upperBound.plusNanos(1_000)));
     }
 
     @ParameterizedTest

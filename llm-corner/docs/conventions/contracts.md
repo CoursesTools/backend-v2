@@ -100,6 +100,14 @@ stay in this list as struck-through with their retirement DEC. -->
   `docker compose pull backend && docker compose up -d backend` on the
   prod VPS. Treat every master push as a prod release.
   `.github/workflows/docker-build.yml:3-5`, `:70-71`.
+- **C16.** Activation snapshot timestamps compare at PostgreSQL's
+  microsecond storage precision. A current command with a genuine snapshot
+  mismatch becomes DEAD and visible to admins; it is never silently deleted.
+  PENDING subscriptions older than 15 minutes with no PENDING/DEAD ACTIVATE
+  command are re-staged at startup and every five minutes. Recovered trials
+  receive seven fresh days; paid expiry is preserved.
+  `listener/SubscriptionChangeStatusListener.java`,
+  `service/PendingSubscriptionReconciliationWorker.java`.
 
 Changing a contract requires: a decision record in
 `../../decisions/`, the architecture doc update, and this file's

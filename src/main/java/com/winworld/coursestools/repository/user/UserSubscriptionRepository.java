@@ -74,6 +74,23 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             """)
     List<UserSubscription> findExpiredSubscriptionsOlderThanDays(LocalDateTime cutoffDate, SubscriptionStatus status);
 
+    @Query("""
+            SELECT us.id
+            FROM UserSubscription us
+            WHERE us.status = 'PENDING'
+              AND us.updatedAt <= :cutoffDate
+            ORDER BY us.updatedAt ASC, us.id ASC
+            """)
+    List<Integer> findStuckPendingSubscriptionIds(LocalDateTime cutoffDate);
+
+    @Query("""
+            SELECT COUNT(us)
+            FROM UserSubscription us
+            WHERE us.status = 'PENDING'
+              AND us.updatedAt <= :cutoffDate
+            """)
+    long countStuckPendingSubscriptions(LocalDateTime cutoffDate);
+
     @Query(value = """
             SELECT us
             FROM UserSubscription us

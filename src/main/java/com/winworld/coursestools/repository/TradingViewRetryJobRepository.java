@@ -40,6 +40,12 @@ public interface TradingViewRetryJobRepository
             TradingViewRetryJobStatus status
     );
 
+    boolean existsByUserIdAndTypeAndStatus(
+            Integer userId,
+            TradingViewRetryJobType type,
+            TradingViewRetryJobStatus status
+    );
+
     @Modifying
     @Query(value = """
             INSERT INTO trading_view_retry_jobs (

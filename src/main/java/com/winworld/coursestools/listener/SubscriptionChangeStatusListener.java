@@ -20,12 +20,15 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
 @Slf4j
 @Component
 public class SubscriptionChangeStatusListener extends AbstractNotificationListener<SubscriptionChangeStatusEvent> {
+    private static final Duration DATABASE_TIMESTAMP_TOLERANCE = Duration.ofNanos(1_000);
     private final ActivatingSubscriptionService activatingSubscriptionService;
     private final UserSubscriptionService userSubscriptionService;
     private final TradingViewRetryService tradingViewRetryService;
@@ -69,11 +72,12 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
             return;
         }
         if (!isCurrentActivationApplicable(event, userSubscription)) {
-            tradingViewRetryService.completeActivation(staged.get());
-            log.warn("Discarding stale TV activation whose subscription snapshot no longer matches: "
-                            + "userId={} sub={} commandId={} currentStatus={}",
+            String mismatch = describeSnapshotMismatch(event, userSubscription);
+            tradingViewRetryService.markActivationDead(staged.get(), mismatch);
+            log.error("TV activation snapshot mismatch moved current command to DEAD: "
+                            + "userId={} sub={} commandId={} currentStatus={} mismatch={}",
                     userId, event.getUserSubscriptionId(), event.getActivationCommandId(),
-                    userSubscription.getStatus());
+                    userSubscription.getStatus(), mismatch);
             return;
         }
 
@@ -107,11 +111,32 @@ public class SubscriptionChangeStatusListener extends AbstractNotificationListen
         }
         var user = subscription.getUser();
         boolean lifetime = subscription.getPlan().getName() == Plan.LIFETIME;
-        return Objects.equals(subscription.getExpiredAt(), event.getExpiration())
+        return sameDatabaseTimestamp(subscription.getExpiredAt(), event.getExpiration())
                 && subscription.getPlan().getTier() == event.getTier()
                 && lifetime == event.isLifetime()
                 && Objects.equals(user.getEmail(), event.getEmail())
                 && Objects.equals(user.getSocial().getTradingViewName(), event.getTradingViewUsername());
+    }
+
+    private boolean sameDatabaseTimestamp(LocalDateTime persisted, LocalDateTime snapshot) {
+        if (persisted == null || snapshot == null) {
+            return persisted == snapshot;
+        }
+        return Duration.between(persisted, snapshot).abs().compareTo(DATABASE_TIMESTAMP_TOLERANCE) <= 0;
+    }
+
+    private String describeSnapshotMismatch(
+            SubscriptionChangeStatusEvent event,
+            UserSubscription subscription
+    ) {
+        var user = subscription.getUser();
+        boolean lifetime = subscription.getPlan().getName() == Plan.LIFETIME;
+        return "expiration[current=" + subscription.getExpiredAt() + ", event=" + event.getExpiration() + "]"
+                + ", tier[current=" + subscription.getPlan().getTier() + ", event=" + event.getTier() + "]"
+                + ", lifetime[current=" + lifetime + ", event=" + event.isLifetime() + "]"
+                + ", emailMatch=" + Objects.equals(user.getEmail(), event.getEmail())
+                + ", tv[current=" + user.getSocial().getTradingViewName()
+                + ", event=" + event.getTradingViewUsername() + "]";
     }
 
     private void reconcilePendingStatus(

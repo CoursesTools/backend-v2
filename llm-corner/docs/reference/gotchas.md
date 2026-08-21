@@ -49,6 +49,17 @@ code pointer.
 **Root cause:** the app-wide ObjectMapper registers `LocalDateTimeSerializer(DateTimeFormatter.ISO_LOCAL_DATE_TIME)` (`config/ApplicationConfiguration.java:43-44`); that formatter emits nanos when nonzero and omits seconds when zero.
 **Fix:** accept it — the TV bot accepts all three forms (verified in prod). Do NOT "fix" it with `@JsonFormat` (see previous entry). Consumers of our JSON must parse leniently.
 
+### PostgreSQL rounds timestamps to microseconds before async reload
+
+**Symptom:** a fresh trial is recorded as PENDING, the ACTIVATE row disappears,
+and no `/open` request is sent; logs previously said the current snapshot was
+"stale". **Root cause:** `LocalDateTime.now()` carried nanoseconds into the
+event, while PostgreSQL TIMESTAMPTZ reloaded at six-digit microsecond precision;
+exact equality rejected the same business timestamp. **Fix:** canonicalize
+generated expiry values to microseconds, compare within one microsecond, and
+move genuine current-command mismatches to DEAD. Commandless PENDING rows older
+than 15 minutes are rebuilt by the startup/five-minute reconciler (C16).
+
 ### Lombok `private boolean isLifetime` serializes as JSON key `"lifetime"`, not `"isLifetime"`
 
 **Symptom:** the field you named `isX` appears in the wire JSON as `"x"`; a payload written with key `"isX"` deserializes as `false`.
