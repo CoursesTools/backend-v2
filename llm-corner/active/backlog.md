@@ -15,6 +15,20 @@ Format:
 - **[Severity]** <one-line description>. Source: <where it came from>.
 -->
 
+- **[Process]** GitHub Actions deprecations in every repo's deploy
+  workflow. First seen in run 32496528708 (2026-08-21, stale PR #39) and
+  still present in run 42051736119 (2026-11-05):
+  - Node.js 20 actions are forced onto Node.js 24: `actions/cache@v3`,
+    `actions/checkout@v4`, `actions/setup-java@v4`,
+    `docker/build-push-action@v5`, `docker/login-action@v3`,
+    `docker/setup-buildx-action@v3`;
+  - `setup-java@v4` is deprecated (move to `@v5`);
+  - the `ubuntu-latest` label is migrating to Ubuntu 26 (from 2026-10-19).
+
+  The same actions are used in alert-bot-v2 and alert-router; frontend-v2
+  and admin-web use a subset. Upgrade the majors and pin the runner image
+  before compatibility is removed. A workflow change deploys each repo once.
+  Source: deploy run annotations.
 - **[High]** Remaining fallout from the `winworldteam.com` expiry. Stripe
   recovery is done: all missed events were replayed on 10-25. Still open:
   - Check CryptoCloud for gap-window (10-20 → 10-25) postbacks.

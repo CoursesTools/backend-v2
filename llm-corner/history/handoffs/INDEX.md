@@ -48,7 +48,12 @@ in this same directory.
   PR #40 canonicalizes every TV activation/rename expiration to whole seconds
   without changing DB entitlement math; isolated recovery is proceeding one
   user at a time because the remote shared-file 2xx is not proof of access.
-- **`2026-08-19-tv-activation-ordering-followup.md`** — current entry point.
+- `2026-08-21-trial-activation-reconciliation.md` — previous entry point.
+  PR #38 deployed precision-safe activation snapshots and aged-PENDING
+  recovery. Startup re-staged all ten affected trials (subs 4969–4978:
+  GRANTED, fresh seven days, bot 2xx). The same day, PR #40 showed a bot 2xx
+  is not proof of access. Recorded in stale PR #39; absorbed 2026-11-05.
+- `2026-08-19-tv-activation-ordering-followup.md` — previous entry point.
   PR #37 now stages command-tokened activation snapshots so the newest
   payment/admin/Direct command wins despite async delivery order; 94 tests pass.
 - `2026-08-19-subscription-expiry-and-direct-tv-extend.md` — previous entry
