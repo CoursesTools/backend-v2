@@ -160,11 +160,11 @@ the duration base; active renewal did the same for any stale paid row.
 adding plan duration. Payment handling locks both the order and user so two
 different callbacks cannot extend from the same stale subscription state.
 
-### Stripe lifecycle webhooks updated the DB but not TradingView
+### Failed Stripe renewals got a free month (lifecycle sync granted unpaid time)
 
-**Symptom:** `customer.subscription.updated` moves `current_period_end` (plan change, pause, dunning), the DB row is correct, but the user's bot access still carries the old expiry.
-**Root cause:** TV access was only refreshed by payment/order events; lifecycle syncs bypassed them.
-**Fix:** `syncStripeSubscriptionUpdated` publishes the normal `EXTENDED` event when (and only when) `expired_at` actually changed (`SubscriptionService.java:229-231`); metadata-only updates (status, `cancel_at_period_end`) stay quiet so we don't spam the bot. `customer.subscription.deleted` terminates locally without calling Stripe cancel back; both handlers ignore rows already converted away from Stripe (`SubscriptionService.java:220-224`). Commit `96a1866`.
+**Symptom:** a renewal invoice stays `open`/unpaid (card declined, or waiting for customer authentication), yet the customer has a full new month of TradingView access with exact (unbuffered) expiry. 2026-11-05: orders 1034, 731, 1040, 29. Also user 3074 (subscription 4999): Stripe cancelled the sub after dunning failed, but it carried the unpaid expiry into an admin force-retry.
+**Root cause:** since `96a1866` (2026-05-03) `customer.subscription.updated` copied `current_period_end` into `expired_at` and published `EXTENDED`. Stripe rolls the period **before** charging the renewal, and the bot has no revoke.
+**Fix (DEC-005):** only a paid invoice moves `expired_at`, and only to the end of the period that invoice paid for. Lifecycle events are metadata-only. Stripe subs get a 1-day settlement window in the hourly expiry job so a renewal being charged isn't treated as lapsed. Before re-granting a DEAD TV job, check the subscription is still active and paid.
 
 ### Grace/reconciliation scope is deliberately narrow
 
@@ -172,6 +172,25 @@ different callbacks cannot extend from the same stale subscription state.
 **Root cause / fix:** reconciliation only terminates non-trial MONTH/YEAR subs ≥7 days past expiry (`SubscriptionStateReconciliationService.java:23,115-128`; `GRACE_PERIOD_DAYS = 7` at `SubscriptionService.java:74`). LIFETIME is excluded by design (commit `c5ff406`) — don't "fix" that.
 
 ## Payment webhooks
+
+### A lapsed legacy domain silently killed webhooks AND log shipping
+
+**Symptom:** Stripe reported "TLS error" / "could not connect" deliveries.
+Customers paid, but nothing reached the backend. Loki showed no errors, because
+Loki had gone quiet too (Oct 2026, handoff
+`history/handoffs/2026-10-25-winworldteam-domain-expiry-webhooks.md`).
+**Root cause:** `winworldteam.com` expired at Namecheap (2026-10-20 19:55 UTC),
+and every `*.winworldteam.com` name started resolving to parking IPs. Two
+things depended on that one legacy domain: the provider webhook URLs
+(`api.winworldteam.com`) and the backend's Docker Loki push target
+(`loki.winworldteam.com`). So the outage also blinded the tool we'd use to
+spot it.
+**Fix / rule:** point provider webhooks only at `api.coursestools.com`. When
+"no webhooks" and "no logs" happen at the same time, check DNS and RDAP for
+every hostname involved before reading code
+(`https://dns.google/resolve?name=<host>&type=A`,
+`https://rdap.namecheap.com/domain/<domain>`). Read prod logs from
+`docker logs backend` whenever Loki's newest line is suspiciously old.
 
 ### Stripe webhook delivery can stop silently — money collected, nobody activated
 

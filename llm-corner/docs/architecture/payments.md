@@ -157,19 +157,32 @@ for admins).
 
 ## Stripe lifecycle sync (non-payment webhooks)
 
-Keeps local state matching Stripe when changes happen outside our flow
-(portal cancellations, Stripe retries, dunning):
+Records Stripe's view of a subscription when it changes outside our flow
+(portal cancellations, Stripe retries, dunning). **It never grants access.**
+Stripe rolls `current_period_end` before charging the renewal, so only a paid
+invoice moves `expiredAt` (DEC-005, C2).
 
-- `customer.subscription.updated` -> `syncStripeSubscriptionUpdated`
-  (`service/SubscriptionService.java:210-233`): looks up the sub by
-  `paymentProviderData.subscriptionId`; ignores unknown ids or subs that are
-  no longer Stripe-backed; updates `expiredAt` + stores `currentPeriodEnd` /
-  `stripeStatus` / `cancelAtPeriodEnd` (`syncStripeLifecycleMetadata`,
-  `:270-294`); publishes `EXTENDED` only when `expiredAt` actually changed
-  (so TV gets re-synced).
-- `customer.subscription.deleted` -> `handleStripeSubscriptionDeleted`
-  (`:236-268`): syncs metadata, then (unless already TERMINATED) sets
-  `TERMINATED`, deactivates the referral, and publishes `GRACE_PERIOD_END`.
+- `customer.subscription.updated` -> `syncStripeSubscriptionUpdated`: looks
+  up the sub by `paymentProviderData.subscriptionId` and ignores unknown ids or
+  subs that are no longer Stripe-backed. It stores `currentPeriodEnd` /
+  `stripeStatus` / `cancelAtPeriodEnd` (`syncStripeLifecycleMetadata`). When
+  Stripe's period end is ahead of the paid expiry it logs `awaiting paid
+  invoice`. It never changes `expiredAt` and never publishes an event.
+- `invoice.payment_succeeded` sets expiry to that invoice's latest line
+  `period.end`, so a late or replayed invoice cannot grant a newer unpaid
+  period (`StripePaymentService.resolvePaidPeriodEnd`).
+- Renewal settlement window: Stripe charges the renewal some time after the
+  roll. The hourly expiry job holds a Stripe-backed sub GRANTED until
+  `expiredAt + 1 day` (= the TV payment buffer) before moving it to grace.
+  That prevents a renewal that is about to be charged from triggering the
+  expiry email, the alert pause and referral deactivation.
+- `customer.subscription.deleted` -> `handleStripeSubscriptionDeleted`:
+  records metadata, keeps the last paid `expiredAt`, then (unless already
+  TERMINATED) sets `TERMINATED`, deactivates the referral, and publishes
+  `GRACE_PERIOD_END`. It returns the user id, and `PaymentFacade` then calls
+  `AlertService.removeAlertsIfNoActiveSubscription` (C18). A deletion is a
+  termination, so the alert list goes. A lapse without deletion only enters
+  grace, where alerts are paused.
   Note: there is **no bot-revoke channel** — TV access lapses when the
   expiration last sent to the bot passes. A preceding customer-payment
   activation is padded by one day; lifecycle-only syncs are exact (DEC-002).

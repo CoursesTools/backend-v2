@@ -35,6 +35,16 @@ path is a compromised production.
   `@PreAuthorize("hasRole('ADMIN')")` on every `/v1/admin` mutation
   (`controller/AdminController.java`; one stats endpoint also allows
   `PARTNER`); News/Code mutations are ADMIN-only too.
+- **System settings and system alerts** (`/v1/admin/settings/**`,
+  `/v1/admin/ops-alerts/**`) are ADMIN-only with no PARTNER exception, and a
+  reflection test fails the build otherwise. Inputs are bean-validated and
+  re-checked by DB CHECK constraints. Grace changes use optimistic locking.
+  The `@ct_maintenance_bot` token is env-only (`OPS_TELEGRAM_BOT_TOKEN`), is
+  never returned by the API, and is redacted from logs (DEC-007).
+- **Alert bot and router** (other host): after PLAN-003 the bot accepts
+  calls only with `X-Internal-Token`, once `ALERT_BOT_REQUIRE_TOKEN=true`.
+  The router accepts TradingView webhooks only on `/api/alerts/{secret}`,
+  once `ALERT_ROUTER_ALLOW_LEGACY_PATH=false` (`../ecosystem/alert-bot.md`).
 - **Passwords** are BCrypt-hashed (`SecurityConfig.passwordEncoder()`).
   OAuth signin via Google and Discord
   (`service/external/OAuthGoogleService.java` / `OAuthDiscordService.java`).
@@ -65,13 +75,19 @@ secrets by env-var **name** only, never by value — full rationale in
 
 ## Audit log
 
-**Not implemented.** There is no dedicated audit trail; admin actions
-(grants, cashback overrides, TV retry management) leave no systematic
-security record. The only forensic source is the application JSON logs
-shipped to Loki/Grafana on the ct-logs VPS (`../operations/log-playbook.md`)
-— INFO-level, no request IDs (no MDC), correlate by userId/orderId. If
-an admin-action audit trail becomes a requirement, it is new work, not
-something to "find".
+**Settings changes only.** Every change made through
+`/v1/admin/settings/**` (grace days, ops-alert pause and categories,
+Telegram recipients, test messages) writes an `admin_audit_log` row:
+actor user id, action, target, before/after JSON. It is also logged as
+"Admin audit: …". admin-web shows it under Settings → Recent changes
+(DEC-007).
+
+Older admin actions (grants, cashback overrides, TV retry management)
+still leave no systematic record. For those, the only forensic source is the
+application JSON logs shipped to Loki/Grafana on the ct-logs VPS
+(`../operations/log-playbook.md`). Those logs are INFO-level, with no request
+IDs (no MDC); correlate by userId/orderId. Extending the audit trail to them
+is new work, not something to "find".
 
 ## Data handling
 

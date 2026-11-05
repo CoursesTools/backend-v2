@@ -8,7 +8,7 @@ real error string back when you explain a fix.
 | Source | Command | Notes |
 |---|---|---|
 | Backend app (prod) | `ssh ct-backend "docker logs backend --since 1h"` | Container `backend` on VPS 5.129.216.95 (`.env:50`). JSON lines on stdout (prod Spring profile is the default, `application.yml:1-3`). Container clock is UTC even though the host is Europe/Moscow. |
-| Loki / Grafana | Grafana on ct-logs VPS 77.232.135.132 port 3000 (`.env:54`); Loki :3100, Prometheus :9090 | Backend ships JSON logs to loki.winworldteam.com via the Docker Loki logging driver configured in the prod compose on the server (`/root/coursestools/docker-compose.yml`) — not in the repo's dev `docker-compose.yml`. Query in Grafana Explore, e.g. `{container_name="backend"} |= "TV activation"` or `{container_name="backend"} | json | level="ERROR"`. |
+| Loki / Grafana | Grafana on ct-logs VPS 77.232.135.132 port 3000 (`.env:54`); Loki :3100, Prometheus :9090 | Backend ships JSON logs to loki.winworldteam.com via the Docker Loki logging driver configured in the prod compose on the server (`/root/coursestools/docker-compose.yml`) — not in the repo's dev `docker-compose.yml`. **Loki has a permanent gap from 2026-10-20 21:35 to 2026-10-25 16:45 UTC (the domain expired, see `servers.md`). Always check the newest line's timestamp before trusting silence.** Query in Grafana Explore, e.g. `{container_name="backend"} |= "TV activation"` or `{container_name="backend"} | json | level="ERROR"`. |
 | Postgres (prod) | `ssh ct-backend "docker logs postgres --since 1h"` | Same host, same compose project. |
 | Local dev | console | `dev` profile uses a colored plain-text pattern, not JSON (`src/main/resources/logback-spring.xml:2-11`). |
 

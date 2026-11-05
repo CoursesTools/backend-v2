@@ -19,9 +19,13 @@ tradingview.com. All paths below are relative to
   Stripe period end / status / cancel flag), `plan`, `user`.
 - Statuses (`enums/SubscriptionStatus.java`): `PENDING` (paid/created,
   TV activation not confirmed yet) → `GRANTED` (listener confirmed) →
-  `GRACE_PERIOD` (expired, 7-day grace) → `TERMINATED`.
-- Constants: `GRACE_PERIOD_DAYS = 7` (`service/SubscriptionService.java:74`);
-  lifetime sentinel `LIFETIME_EXPIRY = 2100-12-31T23:59:59`
+  `GRACE_PERIOD` (expired; alerts paused; TV access lapsed) → `TERMINATED`.
+- Grace length: `SystemSettingsService.getGracePeriodDays()` reads
+  `system_settings.grace_period_days`. It is edited on the admin-web Settings
+  page (1–30) and falls back to 7 on any failure (C13, DEC-006). The
+  customer API returns `gracePeriodEndsAt` (= `expiredAt` + grace days) on
+  GRACE_PERIOD subscriptions (`UserSubscriptionService.getUserSubscriptionsByFilter`).
+- Constants: lifetime sentinel `LIFETIME_EXPIRY = 2100-12-31T23:59:59`
   (`SubscriptionService.java:75`) — was year 9999, but the TV bot rejects
   dates that far out; migration `V14__fix_lifetime_expiry_year.sql`
   rewrote rows and queued retry payloads.
@@ -50,24 +54,31 @@ tradingview.com. All paths below are relative to
     serializing different paid orders for the same user.
   - Switching a Stripe-backed sub to another method cancels the Stripe
     subscription first (`:335`, `:363`).
-- **Stripe lifecycle sync** — webhook-driven
-  `syncStripeSubscriptionUpdated` (`:210`) mirrors period end into
-  `expiredAt` (publishes `EXTENDED` when it changed);
-  `handleStripeSubscriptionDeleted` (`:236`) terminates and publishes
-  `GRACE_PERIOD_END`. Both no-op if the local sub is no longer
-  Stripe-backed.
+- **Stripe lifecycle sync**: webhook-driven, **metadata-only** (DEC-005).
+  `syncStripeSubscriptionUpdated` records period end, status and cancel
+  flag, but never changes `expiredAt`. Only a paid invoice moves access
+  (`payments.md`). `handleStripeSubscriptionDeleted` terminates, publishes
+  `GRACE_PERIOD_END`, and returns the user id so `PaymentFacade` can remove
+  their alerts. Both no-op if the local sub is no longer Stripe-backed.
 - **Expiry → grace** — hourly scheduler: `GRANTED` + expired →
   `SubscriptionDeactivationService.deactivateSingleSubscription`
   (REQUIRES_NEW per row): status `GRACE_PERIOD`, referral deactivated,
-  `GRACE_PERIOD_START` published. Stripe-backed subs are only logged, never
-  cancelled at Stripe from the cron (`SubscriptionDeactivationService.java:70-77`).
-- **Grace → terminated** — `SubscriptionStateReconciliationService
+  `GRACE_PERIOD_START` published. Alerts are **not** touched: the alert bot
+  stops delivering because the status is no longer GRANTED/PENDING (C18).
+  Stripe-backed subs stay GRANTED until `expiredAt + 1 day` (renewal
+  settlement window, DEC-005) and are never cancelled at Stripe from the
+  cron.
+- **Grace → terminated**: `SubscriptionStateReconciliationService
   .reconcilePastGracePeriodSubscriptions` terminates non-trial MONTH/YEAR
-  subs with `expiredAt <= now(UTC) - 7d` and publishes `GRACE_PERIOD_END`.
-  Runs hourly, at startup (`SubscriptionPastGracePeriodStartupReconciler`),
-  and lazily via `discardPastGracePeriodSubscription`; exports gauge
+  subs with `expiredAt <= now(UTC) - graceDays` and publishes
+  `GRACE_PERIOD_END`. It returns the terminated user ids, and the caller runs
+  `AlertService.removeAlertsIfNoActiveSubscription` for each. It runs hourly
+  and at startup (`SubscriptionPastGracePeriodStartupReconciler`). It also
+  runs lazily via `discardPastGracePeriodSubscription`, which does **not**
+  clear alerts (inert rows, DEC-006). It exports gauge
   `subscriptions.past_grace_period.count`.
-- **Trial expiry** — hourly: straight to `TERMINATED`, `TRIAL_ENDED`.
+- **Trial expiry**: hourly, straight to `TERMINATED` and `TRIAL_ENDED`.
+  Alerts are removed unless another subscription is current.
 - **Admin grants** (`AdminService` → `SubscriptionService:436-589`):
   `adminGrantPaid` (MONTH/YEAR via a transient never-persisted Order through
   the canonical payment path, or `keepExpirationDate=true` tier swap),
@@ -193,9 +204,9 @@ Admin API (`controller/AdminController.java:115-139`, ADMIN role):
 
 | Job | Cron | Does |
 |---|---|---|
-| `SubscriptionScheduler.deactivateExpiredSubscriptions` | `0 0 * * * *` (hourly) | GRANTED+expired → GRACE_PERIOD; unsubscribes user's alerts |
-| `SubscriptionScheduler.cleanupExpiredTrialSubscriptions` | `0 0 * * * *` | every non-terminated expired trial (PENDING/GRANTED/GRACE_PERIOD) → TERMINATED; unsubscribes alerts |
-| `SubscriptionScheduler.cleanupExpiredGracePeriodSubscriptions` | `0 0 * * * *` | past-grace reconciliation → TERMINATED |
+| `SubscriptionScheduler.deactivateExpiredSubscriptions` | `0 0 * * * *` (hourly) | GRANTED+expired → GRACE_PERIOD; alerts kept (paused by the bot filter) |
+| `SubscriptionScheduler.cleanupExpiredTrialSubscriptions` | `0 0 * * * *` | every non-terminated expired trial (PENDING/GRANTED/GRACE_PERIOD) → TERMINATED; removes alerts if no other current sub |
+| `SubscriptionScheduler.cleanupExpiredGracePeriodSubscriptions` | `0 0 * * * *` | past-grace reconciliation → TERMINATED; removes alerts if no other current sub |
 | `TradingViewRetryScheduler.pollDueJobs` | `0 * * * * *` (every minute) | drains due PENDING retry jobs |
 | `SubscriptionScheduler.reconcileStuckPendingSubscriptions` | `0 */5 * * * *` | re-stages orphaned PENDING subscriptions older than 15 minutes |
 

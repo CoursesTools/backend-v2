@@ -15,6 +15,8 @@ Status legend (in the Outcome column):
 | 2026-08-01 | `PLAN-001-tv-bot-hardening.md` | SHIPPED 2026-08-01 — one-line summary of what shipped, key commits, what was deferred (→ backlog) |
 -->
 
-(Empty until the first PLAN ships — `PLAN-001-tv-bot-hardening.md` is
+| 2026-11-05 | `PLAN-002-subscription-expiry-and-direct-tv-extend.md` | SHIPPED (PR #37, `3cc3d5f`) — source-aware expiry, disjoint schedulers, payment-only TV buffer, Direct Extend; prod verification + order #997 repair → backlog |
+
+(`PLAN-001-tv-bot-hardening.md` is
 still in `../../active/plans/`. Adding a row here is part of the
 session-close checklist — `../../protocols/lifecycle.md`.)

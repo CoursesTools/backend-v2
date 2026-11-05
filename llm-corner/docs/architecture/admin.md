@@ -2,9 +2,12 @@
 
 Back-office control plane: subscription grants, user lookup, order search,
 TradingView retry-queue administration, statistics, partnership cashback
-overrides, and custom Stripe invoices. Everything lives on
-`AdminController` (`/api/v1/admin/**`) plus one admin-only endpoint on
-`SubscriptionController` (`POST /api/v1/subscriptions/activate`).
+overrides, custom Stripe invoices, system settings and the system-alert
+history. Most of it lives on `AdminController` (`/api/v1/admin/**`).
+Settings live on `AdminSettingsController` and alert history on
+`AdminOpsAlertController` (both under `/api/v1/admin`). There is also one
+admin-only endpoint on `SubscriptionController`
+(`POST /api/v1/subscriptions/activate`).
 API context path `/api` is set in `src/main/resources/application.yml:46`.
 
 ## Authorization
@@ -171,6 +174,38 @@ statuses: PENDING, DEAD.
   job was already processed.
 - **Drop** (`drop`, lines 260-265): idempotent single DELETE; 404 if the
   row no longer exists.
+
+## Settings: `/settings/*` (`controller/AdminSettingsController.java`)
+
+Strictly ADMIN; PARTNER gets 403 (DEC-007). The acting admin is the JWT
+principal. Every change writes one `admin_audit_log` row
+(`AdminAuditService`) with before/after JSON.
+
+| Endpoint | Body / params | Notes |
+|---|---|---|
+| `GET /settings` | — | Grace days (+ min 1 / max 30 / default 7), ops pause, categories, recipients, `version`, last change and who made it, `telegramBotConfigured`. The bot token itself is never returned. |
+| `PUT /settings/grace-period` | `{gracePeriodDays 1–30, version}` | 409 if `version` is stale (another admin saved first). Takes effect on the next hourly run (`subscriptions-and-tradingview.md`). |
+| `PUT /settings/ops-alerts/paused` | `{paused}` | Global Telegram pause. Alerts are still stored. |
+| `PUT /settings/ops-alerts/categories/{category}` | `{enabled}` | PAYMENTS / TV_ACCESS / ALERT_DELIVERY / INFRASTRUCTURE / DIGEST. An unknown value returns 400. |
+| `POST /settings/telegram-recipients` | `{telegramId "^[1-9][0-9]{4,14}$", label ≤ 64}` | Max 20; a duplicate returns 409. |
+| `DELETE /settings/telegram-recipients/{id}` | — | 404 if already gone. |
+| `POST /settings/telegram-recipients/test` | — | Sends a test message to every recipient and returns a per-recipient result. 10s cooldown (409). |
+| `GET /settings/audit?limit≤200` | — | Newest first, with actor email. |
+
+Service: `service/ops/SystemSettingsService.java`. Reads never throw. Grace
+falls back to 7, pause to off, categories to on (C13, DEC-007).
+
+## System alerts: `/ops-alerts` (`controller/AdminOpsAlertController.java`)
+
+- `GET /ops-alerts?q&category&from&to&beforeId&limit`:
+  - `q` ≤ 200 chars, split into ≤ 8 AND-ed substring terms;
+  - `from`/`to` are ISO-8601 instants (`from` < `to`, else 400);
+  - `limit` ≤ 100;
+  - returns `{items, nextCursor, total, terms}`. Pass `nextCursor` back as
+    `beforeId` for the next page.
+- `GET /ops-alerts/{id}`: one alert (the Telegram deep link). 404 if purged.
+
+Search and storage details: `ops-alerts.md`.
 
 ## Gotchas
 

@@ -90,7 +90,8 @@ is retired: its validator rejects all new payments
 | Payments | `payments.md` | Orders/pricing, Stripe (primary, webhooks + lifecycle sync), CryptoCloud, Balance, retired Payeer |
 | Auth + security | `auth-and-security.md` | JWT filter chain, OAuth Google/Discord, stateless refresh JWT in HttpOnly cookie, signup TV-nickname check |
 | Partnership, referrals, alerts | `partnership-referrals-alerts.md` | 11-level referral cashback, partner codes (PRO-only), alerts + alert bot push |
-| Admin | `admin.md` | `/v1/admin` surface: manual grants (classic/custom/lifetime), TV retry admin, invoices/stats |
+| Admin | `admin.md` | `/v1/admin` surface: manual grants (classic/custom/lifetime), TV retry admin, invoices/stats, settings (grace days, ops alerts), audit |
+| Ops alerts | `ops-alerts.md` | Scheduled health checks, admin Telegram alerts via `@ct_maintenance_bot`, alert history + search, digest |
 | Persistence, scheduling, events | `persistence-scheduling-events.md` | Entities/repositories, Flyway migrations, Redis usage, schedulers, event/listener machinery |
 
 (One deep-dive file per subsystem. NEVER name a subsystem file
