@@ -85,3 +85,20 @@ instruction.
   operator's explicit go-ahead per PR.
 - `ct-backend` ssh is password auth. Drive it with `SSH_ASKPASS` reading
   `VPS_BACKEND_PASSWORD` from `.env`, and never print it.
+
+## Addendum (same day, after #43)
+
+- **Correction:** the router *does* retry connection errors and 5xx, 3× with 100 ms backoff (about
+  0.7s). That window is just shorter than a bot restart, which is why the 11 alerts were lost. The
+  landmine above stands; the backlog item now asks for a wider retry window.
+- #43 verified in prod: V19 applied (668 rows wcsmc, 1,156 subscriptions kept). The first
+  `Crossing_equlibrium` after deploy matched alert 18198 and was delivered. A junk bearer token gets
+  401 `"Invalid token"` with 0 servlet errors.
+- Agent docs refreshed in the other repos (all local, gitignored, no deploy):
+  - `alert-bot-v2/claude-docs/CLAUDE_README.md` (new; excluded via `.git/info/exclude`);
+  - `alert-router/claude-docs/CLAUDE_README.md` (rewritten);
+  - `admin-web/claude-docs/CLAUDE_README.md` (new pages, backend message path, deploy, dev tips);
+  - `frontend-v2/claude-docs/CLAUDE-DASHBOARD.md` (grace from the API), `CLAUDE_README.md` (backend
+    pointers, deploy), `claude-git/GIT-grace-period-from-api-05-11-2026.md`.
+
+  New ecosystem file: `docs/ecosystem/frontend-v2.md`.

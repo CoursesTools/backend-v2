@@ -11,13 +11,18 @@ pointer, where it runs, how to message its agents.
 | Alert bot (`alert-bot-v2`, Telegram alert delivery) | `alert-bot.md` | we consume (one notification endpoint) |
 | Payment gateways (Stripe live, CryptoCloud; Payeer retired) | `payment-gateways.md` | two-way (we call their APIs, they call our webhooks) |
 | Admin web (`admin-web`, React admin panel) | `admin-web.md` | they consume (our `/api/v1/admin` API) |
+| Frontend (`frontend-v2`, customer web app) | `frontend-v2.md` | they consume (public `/api/v1` API, e.g. `gracePeriodEndsAt`) |
 
-Adjacent projects in `C:/Users/taras/Desktop/ct-projects/` that this backend
-does **not** call directly and that have no ecosystem file yet: `frontend-v2`
-(main web client, consumes the whole public API), `alert-router` (routes
-TradingView alert webhooks to Telegram bots; the routing contract belongs
-to that project), `helper-tg-bot`. Add a file
-here when a direct dependency appears.
+`alert-router` (routes TradingView webhooks to the Telegram bots, secret URL plus a bot token since
+2026-11-05) is covered inside `alert-bot.md`; its own agent notes are in
+`alert-router/claude-docs/CLAUDE_README.md`. `helper-tg-bot` has no direct dependency. Add a file here
+when one appears.
+
+Agent notes in the other repos (local, gitignored, kept current on 2026-11-05):
+- `alert-bot-v2/claude-docs/CLAUDE_README.md`;
+- `alert-router/claude-docs/CLAUDE_README.md`;
+- `admin-web/claude-docs/CLAUDE_README.md` (plus tracked `CLAUDE.md`/`AGENTS.md`);
+- `frontend-v2/claude-docs/` (`CLAUDE_README.md`, `CLAUDE-DASHBOARD.md`).
 
 ## File template per ecosystem entry
 

@@ -125,9 +125,9 @@ alert stops.
 
   Rotate a secret or token by adding a second comma-separated value,
   switching callers, then removing the old one.
-- Restart order matters: the router does not retry a refused connection,
-  so alerts that arrive while the bot restarts are lost (11 were lost in
-  the ~3s gap during the 14:05 flip). Restart the bot first and the router
+- Restart order matters. The router retries a refused connection for only
+  about 0.7s (3× backoff from 100 ms), which is shorter than a bot restart, so
+  alerts that arrive meanwhile are lost (11 during the 14:05 flip). Restart the bot first and the router
   after it, and not in the first seconds after a 5-minute mark, when bar
   closes fire bursts of alerts.
 - Backend alert domain docs: `../architecture/partnership-referrals-alerts.md`.

@@ -1,7 +1,7 @@
 # Proposal — Ops watchdog (Telegram) + admin self-serve (2026-11-05)
 
-Status: PROPOSAL, awaiting operator choice. Becomes a PLAN once picked;
-`active/plans` is at its cap of 2.
+Status: IMPLEMENTED as PLAN-003 (released 2026-11-05, `history/plans/PLAN-003-*.md`). Ideas not
+picked remain here for reference only. The current state is in `docs/architecture/ops-alerts.md`.
 
 ## Why
 
