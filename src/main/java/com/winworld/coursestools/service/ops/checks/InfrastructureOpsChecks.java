@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Domains, TLS certificates and log shipping: the failures behind the October 2026 outage. */
@@ -141,16 +142,7 @@ public class InfrastructureOpsChecks {
         String problem;
         try {
             Instant now = Instant.now();
-            URI uri = UriComponentsBuilder.fromHttpUrl(opsProperties.loki().url())
-                    .path("/loki/api/v1/query_range")
-                    .queryParam("query", "{container_name=\"backend\"}")
-                    .queryParam("limit", 1)
-                    .queryParam("direction", "backward")
-                    .queryParam("start", now.minus(Duration.ofHours(2)).toEpochMilli() * 1_000_000)
-                    .queryParam("end", now.toEpochMilli() * 1_000_000)
-                    .encode()
-                    .build()
-                    .toUri();
+            URI uri = lokiNewestLineUri(opsProperties.loki().url(), now);
             HttpHeaders headers = new HttpHeaders();
             headers.set("X-Scope-OrgID", opsProperties.loki().tenant());
             JsonNode response = objectMapper.readTree(
@@ -170,5 +162,22 @@ public class InfrastructureOpsChecks {
         }
         opsAlertService.track("infra.log-shipping", OpsAlertCategory.INFRASTRUCTURE, OpsAlertSeverity.WARNING,
                 problem != null, "Backend logs are not reaching Loki", problem == null ? "" : problem);
+    }
+
+    /**
+     * The LogQL selector contains braces, which UriComponentsBuilder would read as a URI template
+     * variable and leave unencoded. Pass it as a variable instead, so it is strictly encoded.
+     */
+    static URI lokiNewestLineUri(String lokiUrl, Instant now) {
+        return UriComponentsBuilder.fromHttpUrl(lokiUrl)
+                .path("/loki/api/v1/query_range")
+                .queryParam("query", "{query}")
+                .queryParam("limit", 1)
+                .queryParam("direction", "backward")
+                .queryParam("start", now.minus(Duration.ofHours(2)).toEpochMilli() * 1_000_000)
+                .queryParam("end", now.toEpochMilli() * 1_000_000)
+                .encode()
+                .buildAndExpand(Map.of("query", "{container_name=\"backend\"}"))
+                .toUri();
     }
 }
