@@ -42,4 +42,7 @@ public class UserSubscriptionReadDto {
     private LocalDateTime createdAt;
     @Schema(requiredMode = REQUIRED)
     private SubscriptionStatus status;
+    @Schema(description = "Only for GRACE_PERIOD: when the subscription ends for good if not renewed (UTC). "
+            + "Uses the admin-configured grace period length.")
+    private LocalDateTime gracePeriodEndsAt;
 }

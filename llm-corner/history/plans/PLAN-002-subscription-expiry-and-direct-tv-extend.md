@@ -1,6 +1,6 @@
 # PLAN-002 — Repair subscription expiry and add Direct TV Extend
 
-**Status:** IN REVIEW
+**Status:** SHIPPED — PR #37 merged to master (`3cc3d5f`); archived 2026-11-05 by Claude (plan cap). Unchecked item "verify scheduler cleanup, order #997 repair, Direct Extend in prod" moved to `active/backlog.md`.
 **Owner:** Codex chief+worker
 **Commit cadence:** one cohesive incident-fix commit plus lifecycle handoff;
 operator pre-authorized commit, push, and PR but not merge.

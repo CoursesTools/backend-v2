@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Optional;
 
+import static com.winworld.coursestools.dto.external.ActivateTradingViewAccessDto.CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS;
 import static com.winworld.coursestools.enums.PaymentMethod.STRIPE;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_END;
 import static com.winworld.coursestools.enums.SubscriptionEventType.GRACE_PERIOD_START;
@@ -41,6 +43,12 @@ public class SubscriptionDeactivationService {
             log.info("Skipping stale subscription-expiry candidate {} after locked revalidation", userSubscriptionId);
             return false;
         }
+        if (isInsideStripeRenewalSettlementWindow(userSubscription)) {
+            log.info("Subscription {} is Stripe-backed and expired at {}; holding GRANTED for the {}-day renewal "
+                            + "settlement window while the renewal invoice is charged",
+                    userSubscriptionId, userSubscription.getExpiredAt(), CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS);
+            return false;
+        }
         userSubscription.setStatus(GRACE_PERIOD);
         User user = userSubscription.getUser();
         Referral referred = user.getReferred();
@@ -54,11 +62,12 @@ public class SubscriptionDeactivationService {
         return true;
     }
 
+    /** @return the user whose subscription this call terminated; empty if it was already terminated. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void terminatePastGracePeriodSubscription(int userSubscriptionId) {
+    public Optional<Integer> terminatePastGracePeriodSubscription(int userSubscriptionId) {
         UserSubscription userSubscription = getUserSubscriptionForUpdate(userSubscriptionId);
         if (userSubscription.getStatus() == TERMINATED) {
-            return;
+            return Optional.empty();
         }
         var previousStatus = userSubscription.getStatus();
 
@@ -77,6 +86,20 @@ public class SubscriptionDeactivationService {
                 previousStatus
         );
         eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, userSubscription, EXACT));
+        return Optional.of(user.getId());
+    }
+
+    /**
+     * Stripe expiry moves only on a paid invoice, and Stripe charges the renewal some time after the
+     * period rolls. Holding the subscription for the same window as the TradingView payment buffer keeps
+     * a renewal that is being charged from being treated as lapsed (grace email, alert wipe, referral
+     * deactivation) while the customer's TV access is still valid.
+     */
+    private boolean isInsideStripeRenewalSettlementWindow(UserSubscription userSubscription) {
+        return STRIPE.equals(userSubscription.getPaymentMethod())
+                && userSubscription.getExpiredAt()
+                .plusDays(CUSTOMER_PAYMENT_EXPIRY_BUFFER_DAYS)
+                .isAfter(LocalDateTime.now(ZoneOffset.UTC));
     }
 
     private void logSkippedStripeCancellation(UserSubscription userSubscription) {

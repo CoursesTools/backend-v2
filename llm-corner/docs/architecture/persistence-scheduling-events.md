@@ -47,6 +47,13 @@ All paths relative to `src/main/java/com/winworld/coursestools/` unless noted.
   no rows for a tier = unrestricted (PRO model).
 - `Alert`: catalog of alert definitions (type/broker/tf/event/asset/indicator);
   `UserAlert` is the user's subscription to one, with jsonb `properties`.
+- Ops and settings (`entity/ops/`, see `ops-alerts.md`):
+  - `SystemSettings`: single row id=1 with `@Version`;
+  - `OpsAlertCategorySetting`;
+  - `OpsTelegramRecipient`;
+  - `OpsAlert`: history; `search_text` is DB-generated and not mapped;
+  - `OpsAlertState`: edge-trigger state per check key;
+  - `AdminAuditLog`: jsonb before/after.
 
 ### Tables with no JPA entity (native SQL only)
 
@@ -76,6 +83,9 @@ All paths relative to `src/main/java/com/winworld/coursestools/` unless noted.
 | `V13__custom_cashback_columns.sql` | custom_cashback1/2 overrides on user_partnership. |
 | `V14__fix_lifetime_expiry_year.sql` | Lifetime sentinel 9999-12-31 -> 2100-12-31 (TV rejects 9999) + patch retry-job payloads, set isLifetime. |
 | `V15__tv_activation_command_id.sql` | Add nullable command_id to retry jobs so new ACTIVATE commands are ordered while legacy queued rows remain replayable. |
+| `V16__revert_unpaid_stripe_extension_user_3074.sql` | Data fix (DEC-005): sub 4999 back to its last paid expiry, guarded on id/user/Stripe sub id and the leaked value. |
+| `V17__system_settings_ops_alerts_audit.sql` | `system_settings` (grace days 1–30, ops pause), `ops_alert_categories`, `ops_telegram_recipients` (seed 639072017), `ops_alerts` (generated `search_text` + guarded `pg_trgm` GIN), `ops_alert_state`, `admin_audit_log`. |
+| `V18__revert_unpaid_stripe_renewals.sql` | Data fix (DEC-005): four unpaid renewals (subs 5165, 243, 5181, 95) back one month, each guarded on its last paid invoice id and leaked expiry window. |
 
 ## Schedulers
 
@@ -86,9 +96,10 @@ come from `src/main/resources/configs/scheduler.yml` (imported via
 
 | Scheduler | Method | Cron (property) | What it does |
 |---|---|---|---|
-| `scheduler/SubscriptionScheduler.java:19` | `deactivateExpiredSubscriptions` | hourly (`scheduler.subscription.expired-subscriptions`) | GRANTED + expired **non-trial** subs -> GRACE_PERIOD; each candidate is locked/revalidated in REQUIRES_NEW before referral/event/alert work. |
-| `scheduler/SubscriptionScheduler.java:27` | `cleanupExpiredTrialSubscriptions` | hourly (`...trial-expired-subscriptions`) | Every expired non-terminated trial, including PENDING/GRACE_PERIOD, -> TERMINATED, publish TRIAL_ENDED, unsubscribe alerts. |
-| `scheduler/SubscriptionScheduler.java:35` | `cleanupExpiredGracePeriodSubscriptions` | hourly (`...grace-period-expired-subscriptions`) | `SubscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("scheduler")` — MONTH/YEAR subs past expiry + 7 days (`SubscriptionService.java:74` GRACE_PERIOD_DAYS) -> TERMINATED, publish GRACE_PERIOD_END. |
+| `scheduler/SubscriptionScheduler.java:19` | `deactivateExpiredSubscriptions` | hourly (`scheduler.subscription.expired-subscriptions`) | GRANTED + expired **non-trial** subs -> GRACE_PERIOD; each candidate is locked/revalidated in REQUIRES_NEW before referral/event work. Stripe subs wait out the 1-day settlement window (DEC-005). Alerts are kept (C18). |
+| `scheduler/SubscriptionScheduler.java:27` | `cleanupExpiredTrialSubscriptions` | hourly (`...trial-expired-subscriptions`) | Every expired non-terminated trial, including PENDING/GRACE_PERIOD, -> TERMINATED, publish TRIAL_ENDED, then `removeAlertsIfNoActiveSubscription`. |
+| `scheduler/SubscriptionScheduler.java:35` | `cleanupExpiredGracePeriodSubscriptions` | hourly (`...grace-period-expired-subscriptions`) | `SubscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("scheduler")` — MONTH/YEAR subs past expiry + grace days (`SystemSettingsService.getGracePeriodDays()`, fallback 7) -> TERMINATED, publish GRACE_PERIOD_END, then `removeAlertsIfNoActiveSubscription` per user. |
+| `scheduler/OpsScheduler.java` | ops checks, digest, retention | `scheduler.ops.*` (5–15 min checks, 05:30 UTC daily infra, 09:00 Europe/Moscow digest, 03:15 retention) | Hands every run to a private single-thread executor; see `ops-alerts.md`. `ApplicationReadyEvent` raises "Backend started". |
 | `scheduler/TradingViewRetryScheduler.java:16` | `pollDueJobs` | every minute (`scheduler.tv-retry.poll`) | `TradingViewRetryService.processDueJobs`: claims due PENDING jobs with `FOR UPDATE SKIP LOCKED` (batch 20, `repository/TradingViewRetryJobRepository.java:22`), POSTs to TV bot; success deletes the row, failure backs off 60s->24h, DEAD after 10 attempts (defaults in `service/external/TradingViewRetryService.java:41-48`). |
 | `scheduler/OrderScheduler.java` | — | — | Empty shell; only a TODO to clean up unpaid orders. No @Scheduled method. |
 
@@ -105,7 +116,7 @@ Async infra: `@EnableAsync` (`CoursesToolsApplication.java:13`) + executor in
 |---|---|---|---|
 | `UserCreateEvent` (id, forwardedFor, email, generatedPassword) | `service/AuthService.java:73` (signup), `:94` (Google signup) | `listener/UserCreateListener.java:40` `setUserRegion` (@Async @EventListener, REQUIRES_NEW): GeoLocation lookup -> `user_profile.country_code`; `:48` `sendNotificationEmail` (@Async @EventListener): welcome emails via message builders. | Region + welcome email after registration. |
 | `SubscriptionChangeStatusEvent` (identity + tier/expiry/lifetime snapshot, subscription/user IDs, eventType, policy, activationCommandId) | Subscription and deactivation services; payment events select CUSTOMER_PAYMENT_BUFFER, every other publisher selects EXACT; activation publishers stage the final DTO in the transaction | `SubscriptionChangeStatusListener.activateUserSubscription` (@TransactionalEventListener @Async, REQUIRES_NEW): locks subscription then PENDING command, rejects superseded/mismatched snapshots, calls TV bot, converts permanent 404 to DEAD, and safely reconciles PENDING→GRANTED. | TV access remains post-commit, but payload and ordering are durable: the latest command wins across payment/admin/Direct/retry paths (DEC-002). |
-| `UserAlertsChangeEvent` (telegramId) | `service/AlertService.java:146,164,172` (alert subscribe/unsubscribe paths) | `listener/UserAlertChangeListener.java:30` (@TransactionalEventListener @Async): POST to alert bot `${urls.alert-bot}` with telegramId. | Alert bot re-syncs the user's alert set. |
+| `UserAlertsChangeEvent` (telegramId) | `service/AlertService.java:146` (`subscribeOnAlerts` only) | `listener/UserAlertChangeListener.java:30` (@TransactionalEventListener @Async): POST to alert bot `${urls.alert-bot}` with telegramId; skips a blank id. | Bot sends the "successfully subscribed" confirmation. It reads `users_alerts` directly; nothing is synced. |
 
 `SubscriptionEventType` values: CREATED, RESTORED, EXTENDED, TRIAL_CREATED,
 TRIAL_ENDED, GRACE_PERIOD_START, GRACE_PERIOD_END (`enums/SubscriptionEventType.java`).
@@ -137,4 +148,8 @@ Trial length: `subscription.ct-pro.trial.days: 7` (`application.yml:103`).
   `trial_activations` (V4) — deleting the user cascades the row away.
 - DB timestamps are mostly `timestamptz` (V1) but entities use `LocalDateTime`;
   the prod container runs UTC — compare times accordingly. The retry-job table
-  (V11) uses plain `TIMESTAMP`.
+  (V11) uses plain `TIMESTAMP`. Hibernate binds and reads `LocalDateTime`
+  against `timestamptz` in the **JVM default zone**. A local run on a
+  non-UTC machine therefore writes and reads shifted instants, while SQL
+  `now()` defaults and explicit-UTC JDBC mappers (`OpsAlertSearchRepository`)
+  stay correct. Start local JVMs with `-Duser.timezone=UTC` to match prod.

@@ -117,7 +117,11 @@ by reverting the commit on master and letting CI redeploy.
   `logback-spring.xml:12-35`); dev profile is human-readable.
 - The backend container ships stdout to **Loki** at `loki.winworldteam.com`
   via the docker Loki logging driver (configured in the prod compose on the
-  box, not in this repo).
+  box, not in this repo). This one legacy domain
+  also fronts the Stripe/CryptoCloud webhook URLs. When it expired, Loki
+  missed **all backend lines from 2026-10-20 21:35 to 2026-10-25 16:45 UTC**,
+  and that gap is permanent. If Loki's newest line looks old, check the
+  domain's DNS/RDAP and fall back to `docker logs backend`.
 - Query logs in **Grafana on ct-logs** (`http://77.232.135.132:3000`), Loki
   datasource `:3100`.
 - Metrics: actuator on `:8081` exposes `health, prometheus, metrics, info`

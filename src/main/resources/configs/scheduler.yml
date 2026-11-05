@@ -6,3 +6,13 @@ scheduler:
     stuck-pending-subscriptions: "0 */5 * * * *"
   tv-retry:
     poll: "0 * * * * *"
+  ops:
+    payments: "0 */10 * * * *"
+    tv-access: "0 2/10 * * * *"
+    alert-delivery: "0 */5 * * * *"
+    log-freshness: "0 4/15 * * * *"
+    daily-infrastructure: "0 30 5 * * *"
+    retention: "0 15 3 * * *"
+    # Moscow time; the container clock is UTC.
+    digest: "0 0 9 * * *"
+    digest-zone: "Europe/Moscow"

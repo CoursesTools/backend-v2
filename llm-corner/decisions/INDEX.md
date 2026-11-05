@@ -18,6 +18,9 @@ re-litigate this question without the record?"
 
 | ID | Title | Date | Status |
 |---|---|---|---|
+| DEC-007 | Ops alerts are always stored; settings are admin-only and audited (`DEC-007-ops-alerts-persisted-admin-only-settings.md`) | 2026-11-05 | ACCEPTED |
+| DEC-006 | Grace pauses alerts; grace length is an admin setting (`DEC-006-grace-pauses-alerts-configurable-grace.md`) | 2026-11-05 | ACCEPTED |
+| DEC-005 | Stripe access moves only on paid invoices (`DEC-005-stripe-access-only-from-paid-invoices.md`) | 2026-11-05 | ACCEPTED |
 | DEC-004 | Normalize TradingView wire expiration to whole seconds (`DEC-004-normalize-tv-wire-expiration-to-seconds.md`) | 2026-08-21 | ACCEPTED |
 | DEC-003 | Reconcile orphaned PENDING TradingView activations (`DEC-003-reconcile-orphaned-pending-activations.md`) | 2026-08-21 | ACCEPTED |
 | DEC-002 | Explicit TradingView expiration policy (`DEC-002-explicit-tv-expiration-policy.md`) | 2026-08-19 | ACCEPTED |

@@ -9,6 +9,7 @@ import com.winworld.coursestools.enums.PaymentMethod;
 import com.winworld.coursestools.enums.SubscriptionName;
 import com.winworld.coursestools.exception.exceptions.ConflictException;
 import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
+import com.winworld.coursestools.service.AlertService;
 import com.winworld.coursestools.service.OrderService;
 import com.winworld.coursestools.service.SubscriptionService;
 import com.winworld.coursestools.service.payment.impl.BalancePaymentService;
@@ -29,6 +30,7 @@ public class PaymentFacade {
     private final OrderService orderService;
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionService userSubscriptionService;
+    private final AlertService alertService;
 
     public void retrieveStripePayment(String payload, String signature) {
         StripeRetrieveDto dto = StripeRetrieveDto.builder()
@@ -38,7 +40,10 @@ public class PaymentFacade {
         if (stripePaymentService.isSubscriptionLifecycleEvent(dto)) {
             var lifecycleDto = stripePaymentService.processSubscriptionLifecycleWebhook(dto);
             if (stripePaymentService.isSubscriptionDeletedEvent(dto)) {
-                subscriptionService.handleStripeSubscriptionDeleted(lifecycleDto);
+                // A cancelled subscription is a full expiry: its alert list is removed (grace only
+                // pauses alerts, it never removes them).
+                subscriptionService.handleStripeSubscriptionDeleted(lifecycleDto)
+                        .ifPresent(alertService::removeAlertsIfNoActiveSubscription);
             } else {
                 subscriptionService.syncStripeSubscriptionUpdated(lifecycleDto);
             }

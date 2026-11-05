@@ -3,10 +3,12 @@ package com.winworld.coursestools.service;
 import com.winworld.coursestools.entity.user.UserSubscription;
 import com.winworld.coursestools.enums.Plan;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
+import com.winworld.coursestools.service.ops.SystemSettingsService;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -24,14 +26,17 @@ public class SubscriptionStateReconciliationService {
 
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionDeactivationService subscriptionDeactivationService;
+    private final SystemSettingsService systemSettingsService;
 
     public SubscriptionStateReconciliationService(
             UserSubscriptionRepository userSubscriptionRepository,
             SubscriptionDeactivationService subscriptionDeactivationService,
+            SystemSettingsService systemSettingsService,
             MeterRegistry meterRegistry
     ) {
         this.userSubscriptionRepository = userSubscriptionRepository;
         this.subscriptionDeactivationService = subscriptionDeactivationService;
+        this.systemSettingsService = systemSettingsService;
 
         Gauge.builder(PAST_GRACE_GAUGE_NAME, this, service -> service.countSubscriptionsPastGracePeriod())
                 .description("Non-trial month/year subscriptions that are still not terminated after the grace period expired")
@@ -53,7 +58,8 @@ public class SubscriptionStateReconciliationService {
         return Optional.empty();
     }
 
-    public int reconcilePastGracePeriodSubscriptions(String trigger) {
+    /** @return users whose subscription this run terminated (their alerts can now be removed). */
+    public List<Integer> reconcilePastGracePeriodSubscriptions(String trigger) {
         LocalDateTime cutoffDate = getPastGraceCutoff();
         List<Integer> subscriptionIds = userSubscriptionRepository
                 .findAllNonTerminatedPastGracePeriod(cutoffDate, PAST_GRACE_RECONCILIATION_PLANS)
@@ -63,7 +69,7 @@ public class SubscriptionStateReconciliationService {
 
         if (subscriptionIds.isEmpty()) {
             log.info("Past-grace reconciliation via {} found no stale subscriptions", trigger);
-            return 0;
+            return List.of();
         }
 
         log.warn(
@@ -72,11 +78,11 @@ public class SubscriptionStateReconciliationService {
                 subscriptionIds.size()
         );
 
-        int terminatedCount = 0;
+        List<Integer> terminatedUserIds = new ArrayList<>();
         for (Integer subscriptionId : subscriptionIds) {
             try {
-                subscriptionDeactivationService.terminatePastGracePeriodSubscription(subscriptionId);
-                terminatedCount++;
+                subscriptionDeactivationService.terminatePastGracePeriodSubscription(subscriptionId)
+                        .ifPresent(terminatedUserIds::add);
             } catch (Exception e) {
                 log.error(
                         "Failed to terminate subscription {} during past-grace reconciliation via {}",
@@ -98,10 +104,10 @@ public class SubscriptionStateReconciliationService {
             log.info(
                     "Past-grace reconciliation via {} terminated {} stale subscriptions",
                     trigger,
-                    terminatedCount
+                    terminatedUserIds.size()
             );
         }
-        return terminatedCount;
+        return terminatedUserIds;
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +130,6 @@ public class SubscriptionStateReconciliationService {
     }
 
     private LocalDateTime getPastGraceCutoff() {
-        return LocalDateTime.now(ZoneOffset.UTC).minusDays(SubscriptionService.GRACE_PERIOD_DAYS);
+        return LocalDateTime.now(ZoneOffset.UTC).minusDays(systemSettingsService.getGracePeriodDays());
     }
 }

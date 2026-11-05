@@ -163,28 +163,35 @@ intersects tier-allowed indicators with the requested filter
   is not subscribed).
 - `DELETE /me/subscriptions/all` — unsubscribe everything.
 
-### Change-notification flow (bot sync)
+### Subscription confirmation (the only bot call)
 
-1. Every subscribe/unsubscribe publishes `UserAlertsChangeEvent(telegramId)`
-   inside the transaction (`service/AlertService.java:146,164,172`).
-2. `listener/UserAlertChangeListener.java:28-41` —
-   `@TransactionalEventListener @Async` (fires after commit) — POSTs an empty
-   body to `{urls.alert-bot}?telegramId=<id>`.
-3. `urls.alert-bot` = env `ALERT_BOT_URL` =
-   `http://193.160.209.73:8080/api/alert/message` (`.env:23`); the bot
-   re-syncs that user's alert set on its side.
+The bot reads `users_alerts` directly from this database for every alert, so
+there is nothing to "sync". The one call is a confirmation message:
 
-Other triggers of unsubscribe-all (each also pings the bot):
+1. Only `AlertService.subscribeOnAlerts` publishes
+   `UserAlertsChangeEvent(telegramId)`. Subscribing requires a bound Telegram
+   id (`checkUserSubscription`).
+2. `listener/UserAlertChangeListener.java:28-36`,
+   `@TransactionalEventListener @Async` (after commit), POSTs an empty body
+   to `{urls.alert-bot}?telegramId=<id>`. It skips a blank id. The bot then
+   sends "✅ You have successfully subscribed for new alerts!".
+3. `urls.alert-bot` = env `ALERT_BOT_URL`. See
+   `../ecosystem/alert-bot.md` for the host mismatch.
 
-- Expired subscription + expired trial schedulers
-  (`scheduler/SubscriptionScheduler.java:20-33`).
-- Unlinking Telegram (`service/user/UserSocialService.java:120-125` —
-  unsubscribes BEFORE nulling the id, so the event still carries it).
+Unsubscribe, unsubscribe-all, the expiry schedulers
+(`scheduler/SubscriptionScheduler.java:20-33`), a Stripe subscription
+deletion (`facade/PaymentFacade.java`) and Telegram unlink
+(`service/user/UserSocialService.java:120-125`) only delete `users_alerts`
+rows and send nothing. Before 2026-11-05 they also published the event.
+Expired users therefore received "successfully subscribed" exactly when their
+alerts were wiped, and users without Telegram produced hourly `400 Bad
+Request` from the bot.
 
 ### Gotchas
 
-- The bot POST has no retry and no error handling; a bot outage silently
-  drops the sync (async exception only reaches the executor's logger).
+- The confirmation POST has no retry. A bot outage loses only the
+  confirmation, never the subscription (the async exception reaches only the
+  executor's logger).
 - `AbstractNotificationListener` offers email fan-out, but
   `UserAlertChangeListener` never calls `sendEmails` — no emails on alert
   changes.

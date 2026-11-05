@@ -36,6 +36,15 @@ role `ADMIN` required (`@PreAuthorize("hasRole('ADMIN')")` per endpoint;
 - `GET /orders` — paginated order list (`AdminController.java:106-113`).
 - `GET/POST/DELETE /tv-retry/jobs*` — TradingView retry queue admin
   (`AdminController.java:115-138`; behavior in `tv-access-bot.md`).
+- `/settings/**`: grace days, Telegram ops-alert pause, categories,
+  recipients, test message, audit. Used by the admin-web **Settings** page.
+  ADMIN only.
+- `/ops-alerts`, `/ops-alerts/{id}`: alert history with search, category and
+  date filters, and keyset paging. Used by the **System Alerts** page, which
+  is also the target of Telegram deep links (`/system-alerts?id=<id>`).
+  ADMIN only.
+
+  Endpoint details: `../architecture/admin.md`.
 
 Plus shared non-admin surfaces: auth/refresh endpoints for login, and the
 OpenAPI schema itself.
@@ -62,7 +71,13 @@ the OpenAPI schema and `AdminController` are authoritative.
 
 - Admin endpoints are protected by `@PreAuthorize` role checks, not by URL
   patterns — a new admin endpoint MUST carry its own `@PreAuthorize`
-  annotation (`controller/AdminController.java`).
+  annotation (`controller/AdminController.java`). For the settings and
+  ops-alert controllers, `AdminEndpointSecurityTest` enforces it.
+- admin-web renders alert bodies (which can contain customer text, such as
+  Stripe cancellation comments) as React elements from a markdown subset,
+  never as raw HTML (`admin-web/src/features/system-alerts/ui/alert-markdown.tsx`).
+- Backend timestamps in admin DTOs are UTC `LocalDateTime` without a zone
+  suffix. admin-web appends `Z` before formatting.
 - Keep the OpenAPI schema accurate (springdoc generates it from controllers/
   DTOs); admin-web's client is generated from it verbatim.
 - Direct Extend success means submitted to TV (`DELIVERED` or durably
@@ -80,3 +95,4 @@ llm-corner agent inbox once adopted).
 ## Change history
 
 - 2026-07-12 — file created from verified code (both repos read).
+- 2026-11-05 — Settings and System Alerts pages (PLAN-003, DEC-007).

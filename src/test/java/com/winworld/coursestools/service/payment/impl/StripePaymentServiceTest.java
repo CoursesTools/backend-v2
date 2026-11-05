@@ -1,22 +1,31 @@
 package com.winworld.coursestools.service.payment.impl;
 
+import com.stripe.model.Invoice;
+import com.stripe.model.InvoiceLineItem;
+import com.stripe.model.InvoiceLineItemCollection;
+import com.stripe.model.Subscription;
+import com.winworld.coursestools.dto.payment.ProcessPaymentDto;
 import com.winworld.coursestools.dto.payment.StripeSubscriptionLifecycleDto;
 import com.winworld.coursestools.config.props.StripeProperties;
 import com.winworld.coursestools.dto.payment.StripeRetrieveDto;
 import com.winworld.coursestools.exception.exceptions.SecurityException;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mockStatic;
 
 class StripePaymentServiceTest {
     private static final String WEBHOOK_SECRET = "whsec_test_secret";
@@ -138,6 +147,81 @@ class StripePaymentServiceTest {
         assertEquals("sub_deleted", lifecycleDto.getSubscriptionId());
         assertEquals("canceled", lifecycleDto.getStatus());
         assertFalse(lifecycleDto.getCancelAtPeriodEnd());
+    }
+
+    @Test
+    void processPayment_LateInvoiceGrantsOnlyItsOwnPaidPeriod_NotTheSubscriptionsNewerUnpaidPeriod() {
+        long paidPeriodEnd = 1792662828L;
+        long unpaidRolledPeriodEnd = 1795254828L;
+        String payload = """
+                {
+                  "id": "evt_invoice_paid",
+                  "object": "event",
+                  "created": 1792662900,
+                  "livemode": true,
+                  "type": "invoice.payment_succeeded",
+                  "data": {
+                    "object": {
+                      "id": "in_paid",
+                      "object": "invoice",
+                      "customer": "cus_paid",
+                      "subscription": "sub_paid",
+                      "lines": {
+                        "object": "list",
+                        "data": [
+                          {
+                            "id": "il_paid",
+                            "object": "line_item",
+                            "metadata": { "order_id": "857" },
+                            "period": { "start": 1790070828, "end": %d }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """.formatted(paidPeriodEnd);
+        Subscription liveSubscription = new Subscription();
+        liveSubscription.setId("sub_paid");
+        liveSubscription.setCurrentPeriodEnd(unpaidRolledPeriodEnd);
+
+        try (MockedStatic<Subscription> stripeSubscription = mockStatic(Subscription.class)) {
+            stripeSubscription.when(() -> Subscription.retrieve("sub_paid")).thenReturn(liveSubscription);
+
+            ProcessPaymentDto result = stripePaymentService.processPayment(signedDto(payload));
+
+            assertEquals(857, result.getOrderId());
+            assertEquals("in_paid", result.getPaymentProviderData().get(StripePaymentService.INVOICE_ID));
+            assertEquals(paidPeriodEnd, result.getPaymentProviderData().get(StripePaymentService.CURRENT_PERIOD_END));
+        }
+    }
+
+    @Test
+    void paidPeriodEnd_ProrationInvoiceUsesLatestLinePeriodEnd() {
+        Invoice invoice = invoiceWithLinePeriodEnds(1792000000L, 1821536000L);
+
+        assertEquals(1821536000L, StripePaymentService.paidPeriodEnd(invoice));
+    }
+
+    @Test
+    void paidPeriodEnd_InvoiceWithoutLinePeriodsReturnsNull() {
+        assertNull(StripePaymentService.paidPeriodEnd(invoiceWithLinePeriodEnds()));
+    }
+
+    private static Invoice invoiceWithLinePeriodEnds(Long... periodEnds) {
+        List<InvoiceLineItem> items = new ArrayList<>();
+        for (Long periodEnd : periodEnds) {
+            InvoiceLineItem.Period period = new InvoiceLineItem.Period();
+            period.setEnd(periodEnd);
+            InvoiceLineItem item = new InvoiceLineItem();
+            item.setPeriod(period);
+            items.add(item);
+        }
+        InvoiceLineItemCollection lines = new InvoiceLineItemCollection();
+        lines.setData(items);
+        Invoice invoice = new Invoice();
+        invoice.setLines(lines);
+        return invoice;
     }
 
     private static StripeRetrieveDto signedDto(String payload) {

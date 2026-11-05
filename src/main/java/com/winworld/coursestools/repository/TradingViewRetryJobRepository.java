@@ -46,6 +46,17 @@ public interface TradingViewRetryJobRepository
             TradingViewRetryJobStatus status
     );
 
+    @Query("""
+            SELECT j FROM TradingViewRetryJob j
+            JOIN FETCH j.user u
+            JOIN FETCH u.social
+            WHERE j.status = :status
+            ORDER BY j.id
+            """)
+    List<TradingViewRetryJob> findAllWithUserByStatus(@Param("status") TradingViewRetryJobStatus status);
+
+    long countByStatusAndFirstEnqueuedAtBefore(TradingViewRetryJobStatus status, LocalDateTime cutoff);
+
     @Modifying
     @Query(value = """
             INSERT INTO trading_view_retry_jobs (

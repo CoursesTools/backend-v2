@@ -56,6 +56,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.winworld.coursestools.service.payment.impl.StripePaymentService.CANCEL_AT_PERIOD_END;
@@ -81,7 +82,6 @@ import static com.winworld.coursestools.enums.TradingViewExpirationPolicy.EXACT;
 @RequiredArgsConstructor
 @Slf4j
 public class SubscriptionService {
-    public static final int GRACE_PERIOD_DAYS = 7;
     private static final LocalDateTime LIFETIME_EXPIRY = LocalDateTime.of(2100, 12, 31, 23, 59, 59);
 
     private final UserDataService userDataService;
@@ -196,8 +196,9 @@ public class SubscriptionService {
                 .collect(Collectors.toList());
     }
 
-    public void deactivateExpiredGracePeriodSubscriptions() {
-        subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("scheduler");
+    /** @return users whose subscription was terminated because their grace period ran out. */
+    public List<Integer> deactivateExpiredGracePeriodSubscriptions() {
+        return subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("scheduler");
     }
 
     @Transactional
@@ -249,17 +250,27 @@ public class SubscriptionService {
             return;
         }
 
-        LocalDateTime previousExpiredAt = subscription.getExpiredAt();
         syncStripeLifecycleMetadata(subscription, dto);
         userSubscriptionService.save(subscription);
-        if (dto.getCurrentPeriodEnd() != null && !subscription.getExpiredAt().equals(previousExpiredAt)) {
-            publishSubscriptionEvent(subscription.getUser(), EXTENDED, subscription, EXACT);
+        // Stripe rolls current_period_end before the renewal invoice is charged, so a lifecycle
+        // event is never proof of payment. Access dates move only on a paid invoice.
+        if (dto.getCurrentPeriodEnd() != null
+                && toUtcDateTime(dto.getCurrentPeriodEnd()).isAfter(subscription.getExpiredAt())) {
+            log.info("Stripe subscription {} period end {} is ahead of paid expiry {} for local subscription {}; "
+                            + "awaiting paid invoice (stripeStatus={})",
+                    dto.getSubscriptionId(), toUtcDateTime(dto.getCurrentPeriodEnd()),
+                    subscription.getExpiredAt(), subscription.getId(), dto.getStatus());
         }
         log.info("Stripe subscription {} synced to local subscription {}", dto.getSubscriptionId(), subscription.getId());
     }
 
+    /**
+     * @return the user whose Stripe-backed subscription is now terminated, so the caller can revoke
+     * the alerts they no longer pay for; empty when the deletion does not apply to a local
+     * Stripe-backed subscription.
+     */
     @Transactional
-    public void handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto dto) {
+    public Optional<Integer> handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto dto) {
         UserSubscription subscription = userSubscriptionRepository
                 .findByStripeSubscriptionId(dto.getSubscriptionId())
                 .orElse(null);
@@ -267,18 +278,18 @@ public class SubscriptionService {
         if (subscription == null) {
             log.warn("Stripe subscription delete ignored: local subscription not found, stripeSubscriptionId={}",
                     dto.getSubscriptionId());
-            return;
+            return Optional.empty();
         }
         if (!STRIPE.equals(subscription.getPaymentMethod())) {
             log.warn("Stripe subscription delete ignored: local subscription {} is no longer Stripe-backed",
                     subscription.getId());
-            return;
+            return Optional.empty();
         }
 
         syncStripeLifecycleMetadata(subscription, dto);
         if (subscription.getStatus() == TERMINATED) {
             userSubscriptionService.save(subscription);
-            return;
+            return Optional.of(subscription.getUser().getId());
         }
 
         User user = subscription.getUser();
@@ -291,6 +302,7 @@ public class SubscriptionService {
         eventPublisher.publishEvent(subscriptionMapper.toEvent(user, GRACE_PERIOD_END, subscription, EXACT));
         log.warn("Stripe subscription {} deleted; local subscription {} terminated",
                 dto.getSubscriptionId(), subscription.getId());
+        return Optional.of(user.getId());
     }
 
     private void syncStripeLifecycleMetadata(
@@ -302,12 +314,9 @@ public class SubscriptionService {
             paymentProviderData.putAll(subscription.getPaymentProviderData());
         }
 
+        // Recorded as Stripe's view only; expiredAt is owned by paid invoices.
         if (dto.getCurrentPeriodEnd() != null) {
             paymentProviderData.put(CURRENT_PERIOD_END, dto.getCurrentPeriodEnd());
-            subscription.setExpiredAt(LocalDateTime.ofInstant(
-                    Instant.ofEpochSecond(dto.getCurrentPeriodEnd()),
-                    ZoneOffset.UTC
-            ));
         }
         if (dto.getStatus() != null) {
             paymentProviderData.put(STRIPE_STATUS, dto.getStatus());
@@ -693,6 +702,10 @@ public class SubscriptionService {
 
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         return first.isAfter(second) ? first : second;
+    }
+
+    private static LocalDateTime toUtcDateTime(long epochSecond) {
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSecond), ZoneOffset.UTC);
     }
 
     private LocalDateTime calculateExpirationDate(

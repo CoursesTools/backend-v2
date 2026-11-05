@@ -160,16 +160,28 @@ public class AlertService {
                     .toList();
             throw new ConflictException("You not subscribe on alerts: " + notSubscribedAlerts);
         }
-        User user = userDataService.getUserById(userId);
-        eventPublisher.publishEvent(new UserAlertsChangeEvent(user.getSocial().getTelegramId()));
+        // No bot notification: its only message is a subscription confirmation, and the bot reads
+        // users_alerts directly, so removed rows simply stop receiving alerts.
         userAlertRepository.deleteAllById(userAlertIds);
+    }
+
+    /**
+     * Full expiry: removes the user's alert list once they have no active CoursesTools subscription
+     * left. A user who still has one (for example a trial that ended after a paid plan started)
+     * keeps their alerts.
+     */
+    @Transactional
+    public void removeAlertsIfNoActiveSubscription(int userId) {
+        var subscriptionType = subscriptionService.getSubscriptionTypeByName(SubscriptionName.COURSESTOOLS);
+        if (userSubscriptionService.getCurrentUserSubBySubTypeId(userId, subscriptionType.getId()).isPresent()) {
+            return;
+        }
+        userAlertRepository.deleteAllByUser_Id(userId);
     }
 
     @Transactional
     public void unSubscribeOnAllAlerts(int userId) {
         userAlertRepository.deleteAllByUser_Id(userId);
-        User user = userDataService.getUserById(userId);
-        eventPublisher.publishEvent(new UserAlertsChangeEvent(user.getSocial().getTelegramId()));
     }
 
     public AlertCategoriesReadDto getUserAlertsCategories(int userId) {

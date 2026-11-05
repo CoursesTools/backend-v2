@@ -16,12 +16,18 @@ stay in this list as struck-through with their retirement DEC. -->
   explicit `TradingViewExpirationPolicy`, and retry payloads persist the
   final value so replay cannot compound it. See DEC-002 and
   `dto/external/ActivateTradingViewAccessDto.java`.
-- **C2.** Stripe-backed subscription expiry IS Stripe's
-  `currentPeriodEnd` — set from webhook data only, never edited
-  manually. Every manual/admin expiry path must call
-  `ensureNotStripeManaged()` and reject Stripe subs.
+- **C2.** Stripe-backed subscription expiry IS the end of the latest
+  **paid** period: the latest line `period.end` of the invoice delivered by
+  `invoice.payment_succeeded`. It is never Stripe's live
+  `current_period_end`, which rolls before the renewal is charged.
+  Lifecycle webhooks record Stripe state as metadata and never move
+  `expiredAt` (DEC-005). The hourly expiry job holds a Stripe sub GRANTED
+  for a 1-day settlement window (= the TV payment buffer) before grace.
+  Every manual/admin expiry path must call `ensureNotStripeManaged()` and
+  reject Stripe subs.
   `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:630-636`
-  (guard), `:279-285` (lifecycle sync), `:602-608` (payment).
+  (guard), `StripePaymentService.resolvePaidPeriodEnd` (payment),
+  `SubscriptionDeactivationService.isInsideStripeRenewalSettlementWindow`.
 - **C3.** The backend never cancels a subscription at Stripe during
   expiry reconciliation — crons only log a skip. Stripe-side
   cancellation happens in exactly two flows: the user pays with a
@@ -43,10 +49,9 @@ stay in this list as struck-through with their retirement DEC. -->
   `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:188-207`,
   `src/main/java/com/winworld/coursestools/listener/SubscriptionChangeStatusListener.java:50-78`.
 - **C6.** Any `expiredAt` change that reaches the DB must also reach
-  the TV bot — publish EXTENDED (or call activation directly). Stripe
-  lifecycle sync publishes EXTENDED only when the expiry actually
-  changed.
-  `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:229-231`, `:587`.
+  the TV bot: publish EXTENDED (or call activation directly). Stripe
+  lifecycle sync never changes `expiredAt`, so it publishes nothing (C2).
+  `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:587`.
 - **C7.** Payment webhook processing is idempotent: the order row is
   locked `findByIdForUpdate`, an already-paid non-recurrent order is
   rejected, and recurrent Stripe replays are deduped by comparing the
@@ -83,17 +88,20 @@ stay in this list as struck-through with their retirement DEC. -->
   with `ZoneOffset.UTC` — never the JVM default zone (the prod
   container runs UTC; the VPS host does not).
   `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:593-595`, `:281-284`.
-- **C13.** Grace period is 7 days (`GRACE_PERIOD_DAYS`) after expiry;
-  paid statuses only flow PENDING → GRANTED → GRACE_PERIOD →
-  TERMINATED, and past-grace reconciliation is fail-safe (startup
-  runner + hourly cron + read-time discard + health gauge).
-  `src/main/java/com/winworld/coursestools/service/SubscriptionService.java:74`,
-  `src/main/java/com/winworld/coursestools/service/SubscriptionStateReconciliationService.java:126-128`,
-  `src/main/java/com/winworld/coursestools/service/user/UserSubscriptionService.java:37`.
+- **C13.** Grace length is `system_settings.grace_period_days` (admin-web
+  Settings, 1–30). Every read goes through
+  `SystemSettingsService.getGracePeriodDays()`, which never throws and
+  returns 7 on any failure or invalid value. Paid statuses only flow
+  PENDING → GRANTED → GRACE_PERIOD → TERMINATED, and past-grace
+  reconciliation is fail-safe (startup runner + hourly cron + read-time
+  discard + health gauge). See DEC-006.
+  `service/ops/SystemSettingsService.java`,
+  `service/SubscriptionStateReconciliationService.java`,
+  `service/user/UserSubscriptionService.java`.
 - **C14.** Flyway migrations are append-only: never edit an applied
   `V*.sql` (Flyway checksum validation fails the app at startup); a
   schema change is always a new file with the next V number.
-  `src/main/resources/db/migration/` (V1–V14),
+  `src/main/resources/db/migration/` (V1–V18),
   `build.gradle.kts:69`.
 - **C15.** Any push to `master` auto-deploys production: GitHub
   Actions builds the image and runs
@@ -113,6 +121,15 @@ stay in this list as struck-through with their retirement DEC. -->
   subscription/database precision is unchanged. Legacy fractional retry JSON
   remains readable and is normalized during deserialization before replay.
   See DEC-004 and `dto/external/TradingViewTimestamp.java`.
+- **C18.** Grace pauses alerts; it never deletes them. The alert bot
+  delivers only to users whose COURSESTOOLS subscription is `GRANTED` or
+  `PENDING`. `users_alerts` rows are deleted only through
+  `AlertService.removeAlertsIfNoActiveSubscription`, after a termination
+  (past grace, trial end, Stripe deletion), and only when the user has no
+  other current subscription. Nothing on the GRANTED → GRACE_PERIOD path may
+  touch `users_alerts`. See DEC-006.
+  `service/AlertService.java`, `scheduler/SubscriptionScheduler.java`,
+  `facade/PaymentFacade.java`, alert-bot-v2 `AlertRepository.kt`.
 
 Changing a contract requires: a decision record in
 `../../decisions/`, the architecture doc update, and this file's

@@ -8,6 +8,7 @@ import com.stripe.model.Coupon;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
+import com.stripe.model.InvoiceLineItem;
 import com.stripe.model.Subscription;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
@@ -41,6 +42,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.CHECKOUT__SESSION__COMPLETED;
 import static com.stripe.param.WebhookEndpointCreateParams.EnabledEvent.INVOICE__PAYMENT_SUCCEEDED;
@@ -307,17 +309,45 @@ public class StripePaymentService extends PaymentService<StripeRetrieveDto> {
             paymentData.put(SUBSCRIPTION_ID, invoice.getSubscription());
             try {
                 subscription = Subscription.retrieve(invoice.getSubscription());
-                paymentData.put(CURRENT_PERIOD_END, subscription.getCurrentPeriodEnd());
             } catch (StripeException e) {
                 log.error("Failed to retrieve subscription details for subscription: {}", invoice.getSubscription(), e);
                 throw new PaymentProcessingException("Failed to retrieve Stripe subscription period end");
             }
+            paymentData.put(CURRENT_PERIOD_END, resolvePaidPeriodEnd(invoice, subscription));
         }
 
         return ProcessPaymentDto.builder()
                 .paymentProviderData(paymentData)
                 .orderId(getOrderIdFromInvoice(invoice, subscription))
                 .build();
+    }
+
+    /**
+     * Access is granted only for the period this invoice actually paid for. The subscription's live
+     * current_period_end can already belong to a newer, still-unpaid period when an older invoice is
+     * delivered late or replayed.
+     */
+    private Long resolvePaidPeriodEnd(Invoice invoice, Subscription subscription) {
+        Long paidPeriodEnd = paidPeriodEnd(invoice);
+        if (paidPeriodEnd != null) {
+            return paidPeriodEnd;
+        }
+        log.warn("Stripe invoice {} has no line periods; falling back to subscription {} current period end",
+                invoice.getId(), subscription.getId());
+        return subscription.getCurrentPeriodEnd();
+    }
+
+    public static Long paidPeriodEnd(Invoice invoice) {
+        if (invoice.getLines() == null || invoice.getLines().getData() == null) {
+            return null;
+        }
+        return invoice.getLines().getData().stream()
+                .map(InvoiceLineItem::getPeriod)
+                .filter(Objects::nonNull)
+                .map(InvoiceLineItem.Period::getEnd)
+                .filter(Objects::nonNull)
+                .max(Long::compare)
+                .orElse(null);
     }
 
     /**
