@@ -21,8 +21,9 @@ Commits: pushed to feature branches, PRs open, **nothing merged**:
 - None of it is deployed. Merging a PR to master deploys that service.
 - Remote host writes are blocked for agents, so every host change is a
   script in `C:/Users/taras/Desktop/ct-projects/ops-scripts/` that the
-  operator runs. Secrets are in `ops-scripts/secrets/` (mode 600, never
-  printed or committed).
+  operator runs. Secrets are in `ops-scripts/secrets/`: never printed or
+  committed, but a plain NTFS folder (no Unix modes). Keep it out of every
+  repo and move the values to the password manager.
 - The review before pushing found a real bypass in the bot's token filter:
   `/api/alert;x=1` and `/api/%61lert` skipped the check. It was fixed and
   tested (`6116d4e`) before the PR.
@@ -80,6 +81,9 @@ Run these in order, from `ct-projects/ops-scripts/` in Git Bash.
    - It refuses if any legacy or unauthenticated call is still seen.
    - Afterwards it shows the legacy URL → 404 and the bot without a token →
      401.
+   - Checked 11-05: there are no active Caddy health checks for
+     `alerts.tw1.su` and no compose healthchecks for the bot or router, so a
+     deny-by-default bot cannot be marked unhealthy.
 10. **Manual follow-ups:**
     - cancel TradingView access for users 3074, 5402, 247, 2541, 96 (V16/V18
       reverted them; the next hourly run moves them to grace and emails
@@ -104,6 +108,10 @@ Run these in order, from `ct-projects/ops-scripts/` in Git Bash.
 - Caddy access logs on `ct-alert-vps` may record the secret webhook path.
   The host is root-only; rotate by adding a second secret
   (comma-separated), updating TradingView, then removing the old one.
+- `alerts.no-incoming` goes CRITICAL after 30 minutes without a
+  TradingView alert (reminders every 6h). Watch the first weekend. If quiet
+  market hours trigger it, switch off the Alert delivery category in
+  Settings until a quiet-hours rule exists.
 - Shortening grace in admin-web terminates every subscription already past
   the new cutoff on the next hourly run, and deletes their alert lists.
 - A local backend run on a non-UTC machine shows shifted times for
@@ -123,8 +131,9 @@ Run these in order, from `ct-projects/ops-scripts/` in Git Bash.
   path bypass tests (they failed before the fix with 200 OK).
 - alert-router: `./gradlew build` green, unchanged since the earlier review.
 - admin-web: `bun run build` green.
-- Ops scripts: `sh -n` syntax check only. **Not executed** (they touch
-  prod hosts).
+- Ops scripts: `sh -n` syntax check of each script and of the generated
+  remote halves (heredocs). **Not executed**, because they touch prod
+  hosts.
 - Not verified: the bot filter against real prod data (step 0 does it);
   real Telegram delivery from the backend (no token locally); RDAP, TLS and
   Loki checks against the real internet (they ran with
