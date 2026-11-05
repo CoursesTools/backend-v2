@@ -48,23 +48,12 @@ Format:
   2026-11-05: repointed to `https://alerts.tw1.su/api/alert/message` with
   `X-Internal-Token`, effective with the backend-v2#41 deploy. Source: 11-05
   investigation.
-- **[High]** `Crossing_equlibrium` alerts are never delivered. **Fix: V19
-  (backend-v2#43); the operator chose WCSMC on 11-05.** Close this once
-  the bot logs `Crossing_equlibrium` matches after the deploy.
-  Verified in prod on 2026-11-05:
-  - The catalog has it only under `smctb` (668 rows, since V8), with **9
-    users / 1,156 subscriptions**.
-  - TradingView sends it only tagged WCSMC: 207 per hour, all "Alert not
-    found", and 0 SMCTB-tagged arrivals.
-
-  Fix depends on which indicator really emits it:
-  - if the WCSMC script emits it, re-tag the catalog rows (new migration;
-    check tier permissions, since ESSENTIALS = wcsmc only);
-  - if SMC ToolBox should emit it, fix the Pine script / watchlist alert to
-    send `indicator=SMCTB`.
-
-  `EQH`/`EQL` (SMCTB) have no catalog rows at all, so nobody can subscribe
-  to them (harmless). Source: 11-05 investigation, read-only DB + bot logs.
+- **[High]** ~~`Crossing_equlibrium` alerts are never delivered~~ Shipped
+  `ae9c5dc` (backend-v2#43, V19, deployed 2026-11-05 14:18 UTC). All 668
+  rows are now wcsmc with 1,156 subscriptions kept. The first arrival after
+  deploy matched (alert 18198, 14:19 UTC), and there were 0 "not found"
+  since. `EQH`/`EQL` (SMCTB) still have no catalog rows (unsold, harmless).
+  Source: 11-05 investigation.
 - **[Low]** Leftover `users_alerts` rows of cancelled customers. Delivery
   stopped on 2026-11-05: the bot status filter (alert-bot-v2#2) mutes them,
   and Stripe deletion removes alerts going forward (backend-v2#41). The rows
@@ -85,12 +74,10 @@ Format:
   shifts instants. Consider `spring.jpa.properties.hibernate.jdbc.time_zone:
   UTC` (a no-op in prod, but it touches every entity: test carefully).
   Source: PLAN-003 local browser pass, 11-05.
-- **[Low]** A malformed `Authorization: Bearer` token (not a JWT) makes
-  `JwtRequestFilter` throw a Jackson `JsonParseException`. It is logged at
-  ERROR with a stack trace while the response is still 403. Anyone can spam
-  ERROR logs this way (seen 2026-11-05 13:54 UTC from a security probe).
-  Catch the parse failure in the filter and treat it as unauthenticated.
-  Source: PLAN-003 release checks.
+- **[Low]** ~~A malformed bearer token makes `JwtRequestFilter` log an ERROR
+  stack trace~~ Shipped `ae9c5dc` (backend-v2#43): it now gets 401
+  `"Invalid token"` and no ERROR log (verified in prod). Source: PLAN-003
+  release checks.
 - **[Low]** Read-time `discardPastGracePeriodSubscription` terminates without
   removing `users_alerts` (DEC-006 known gap). The bot filter already mutes
   those users. Fix by moving alert removal onto a `GRACE_PERIOD_END` /
@@ -103,11 +90,12 @@ Format:
   2026-11-05 (alert-bot-v2#2, alert-router#3; flips at 14:05 UTC). The old
   URL gets 404, the bot without the token gets 401, and encoded/`;param`
   bypasses get 401 (verified in prod). Source: 11-05 alert-repo review.
-- **[Medium]** The alert router does not retry when the bot refuses a
-  connection. Any bot restart loses the alerts that arrive meanwhile (11 lost
-  in the ~3s gap of the 14:05 flip restart). Add a short retry with backoff
-  on `ConnectException` in `AlertRoutingService` (alert-router). Source:
-  PLAN-003 release.
+- **[Medium]** The alert router's retry window is shorter than a bot restart.
+  It retries connection errors and 5xx 3× with 100 ms exponential backoff
+  (about 0.7s in total), but a bot restart takes seconds, so alerts that
+  arrive meanwhile are lost (11 in the 14:05 flip restart). Widen the retry
+  for connection errors (e.g. backoff up to ~15s) in `AlertRoutingService`
+  (alert-router). Source: PLAN-003 release.
 - **[Medium]** The alert-router deploy script ignores a failed
   `docker compose pull` (no `set -e`), so the workflow reports success while
   the old container keeps running. Seen 2026-11-05, GHCR `NotFound: content

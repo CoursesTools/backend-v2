@@ -119,3 +119,11 @@ listed in `admin.md`.
   (`GlobalExceptionHandler`, not logged).
 - `ops_alert_state` is keyed by check key. Renaming a key orphans the old
   state row (harmless; it never resolves).
+- Healthy checks log nothing and write nothing (only state changes are
+  stored). To prove they run, query Prometheus at `77.232.135.132:9090`:
+  `tasks_scheduled_execution_seconds_count{code_namespace=~".*OpsScheduler"}`.
+- Building outbound URLs: a query value containing `{...}` (e.g. a LogQL
+  selector) must be passed as an expanded URI variable
+  (`queryParam("query", "{query}")` + `buildAndExpand`). `encode()` would
+  treat it as a template and leave it unencoded, which caused the false
+  Loki alert fixed in #42.
