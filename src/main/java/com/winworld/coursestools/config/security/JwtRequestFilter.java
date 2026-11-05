@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.winworld.coursestools.exception.ErrorResponse;
 import com.winworld.coursestools.util.jwt.impl.AuthJwtTokenUtil;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -39,18 +40,27 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
+            String role;
             try {
                 userId = Integer.valueOf(jwtTokenUtil.extractSubject(token));
+                role = jwtTokenUtil.extractClaim(token, "role", String.class);
             } catch (ExpiredJwtException e) {
                 handleExpiredJwtException(e, response);
                 return;
             } catch (SignatureException e) {
                 handleSignatureException(e, response);
                 return;
+            } catch (JwtException | IllegalArgumentException e) {
+                // Not a usable JWT at all (garbage, empty, wrong format, non-numeric subject). Answer like
+                // the other bad-token cases instead of letting the parser exception escape, which logged
+                // an ERROR stack trace per request and let anyone flood the logs.
+                log.debug("Rejected unusable bearer token on {}: {}", request.getRequestURI(),
+                        e.getClass().getSimpleName());
+                handleInvalidToken(response);
+                return;
             }
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                String role = jwtTokenUtil.extractClaim(token, "role", String.class);
                 UsernamePasswordAuthenticationToken user =
                         new UsernamePasswordAuthenticationToken(
                                 new UserPrincipal(userId),
@@ -85,6 +95,14 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 e.getMessage()
         );
         configureResponse(errorResponse, response);
+    }
+
+    private void handleInvalidToken(HttpServletResponse response) {
+        configureResponse(new ErrorResponse(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid token",
+                "The bearer token is not a valid access token"
+        ), response);
     }
 
     @SneakyThrows

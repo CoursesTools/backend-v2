@@ -41,10 +41,13 @@ path is a compromised production.
   re-checked by DB CHECK constraints. Grace changes use optimistic locking.
   The `@ct_maintenance_bot` token is env-only (`OPS_TELEGRAM_BOT_TOKEN`), is
   never returned by the API, and is redacted from logs (DEC-007).
-- **Alert bot and router** (other host): after PLAN-003 the bot accepts
-  calls only with `X-Internal-Token`, once `ALERT_BOT_REQUIRE_TOKEN=true`.
-  The router accepts TradingView webhooks only on `/api/alerts/{secret}`,
-  once `ALERT_ROUTER_ALLOW_LEGACY_PATH=false` (`../ecosystem/alert-bot.md`).
+- **Alert bot and router** (other host), enforced since 2026-11-05:
+  - the bot accepts calls only with `X-Internal-Token`;
+  - the router accepts TradingView webhooks only on `/api/alerts/{secret}`.
+
+  See `../ecosystem/alert-bot.md`.
+- **Unusable bearer tokens** get a 401 JSON answer, not a logged server
+  error (`../architecture/auth-and-security.md`).
 - **Passwords** are BCrypt-hashed (`SecurityConfig.passwordEncoder()`).
   OAuth signin via Google and Discord
   (`service/external/OAuthGoogleService.java` / `OAuthDiscordService.java`).

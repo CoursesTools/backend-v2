@@ -86,6 +86,7 @@ All paths relative to `src/main/java/com/winworld/coursestools/` unless noted.
 | `V16__revert_unpaid_stripe_extension_user_3074.sql` | Data fix (DEC-005): sub 4999 back to its last paid expiry, guarded on id/user/Stripe sub id and the leaked value. |
 | `V17__system_settings_ops_alerts_audit.sql` | `system_settings` (grace days 1–30, ops pause), `ops_alert_categories`, `ops_telegram_recipients` (seed 639072017), `ops_alerts` (generated `search_text` + guarded `pg_trgm` GIN), `ops_alert_state`, `admin_audit_log`. |
 | `V18__revert_unpaid_stripe_renewals.sql` | Data fix (DEC-005): four unpaid renewals (subs 5165, 243, 5181, 95) back one month, each guarded on its last paid invoice id and leaked expiry window. |
+| `V19__crossing_equlibrium_back_to_wcsmc.sql` | Re-tags `crossing_equlibrium` (668 rows) from smctb back to wcsmc in place (ids and subscriptions kept), guarded against unique-key twins. V8 had moved it, but TradingView sends it tagged WCSMC, so it was never delivered. |
 
 ## Schedulers
 

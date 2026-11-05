@@ -12,7 +12,7 @@ one endpoint on it: a subscription confirmation.
 | Prod host | `ct-alert-vps` = 37.77.105.213 (Saint Petersburg, Timeweb; ssh key auth, alias in `~/.ssh/config`). Containers `ct-alert-bot`, `alert-router`, also `helper-tg-bot`, `wcsmc_backend`, `harmonic_backend`, `metatrader_backend`, `caddy`, `mongodb`. Verified 2026-11-05. |
 | Public URLs (host Caddy) | `alerts.tw1.su` → `ct-alert-bot:8080`; `winworldteam.ru` → `alert-router:8080` |
 | Router → bots | `COURSESTOOLS_BOT_URL=http://ct-alert-bot:8080/api` (WCSMC, SMCTB); `WCSMC_BOT_URL`, `HARMONIC_BOT_URL` are other products' bots |
-| Backend's `ALERT_BOT_URL` | Must be `https://alerts.tw1.su/api/alert/message` (prod `.env`, PLAN-003 release). Until 2026-11-05 it was `http://193.160.209.73:8080/…`, a host referenced nowhere else and unreachable from both prod hosts, so confirmations were never delivered. The Loki host is 77.232.135.132, not this one. |
+| Backend's `ALERT_BOT_URL` | `https://alerts.tw1.su/api/alert/message` (prod `.env` since 2026-11-05). Before, it was `http://193.160.209.73:8080/…`, a host referenced nowhere else and unreachable from both prod hosts, so confirmations were never delivered. The Loki host is 77.232.135.132, not this one. |
 | Backend → bot auth | `X-Internal-Token: ${ALERT_BOT_INTERNAL_TOKEN}` on the confirmation call and on `GET /api/ops/stats` (ops checks, `../architecture/ops-alerts.md`) |
 | Deploy | push to `master` in each repo → GHCR image `:latest` → ssh `compose pull` + `up` (`.github/workflows/docker-build.yml`). Compose file and `.env` live only on the host. |
 | Logs | `docker logs ct-alert-bot` / `alert-router` (JSON). Not shipped to Loki. |
@@ -82,10 +82,12 @@ The prod Caddy on `ct-backend` serves `https://api.coursestools.com/tg-relay/*`
 callers are aborted), and access logs are skipped so bot tokens in the path
 never hit disk. The bot uses it with
 `TELEGRAM_API_BASE_URL=https://api.coursestools.com/tg-relay/bot` in
-`/root/AlertRouter/.ct-alert-bot.env`. Operator-run scripts:
-`ct-projects/ops-scripts/2026-11-05-amsterdam-telegram-relay.sh` and
-`2026-11-05-alert-bot-use-relay.sh`. The relay is live only after both have
-run (PLAN-003 progress).
+`/root/AlertRouter/.ct-alert-bot.env`. Live since 2026-11-05 13:06 UTC
+(scripts: `ct-projects/ops-scripts/2026-11-05-amsterdam-telegram-relay.sh`,
+`2026-11-05-alert-bot-use-relay.sh`). The Caddyfile on `ct-backend` is
+not in any repo. The admin-web deploy only restarts Caddy, which keeps the
+block; a Caddyfile rewrite must keep `handle_path /tg-relay/*`, or every
+alert stops.
 
 ## What we consume
 
@@ -115,10 +117,19 @@ run (PLAN-003 progress).
   Renaming those columns or values, or adding a paid status, is a
   cross-project contract change (C18).
 - Both public hostnames are reachable from the internet through the alert
-  host's Caddy. Authentication is the router's secret path and the bot's
-  internal token. They only take full effect after the two flips in
-  PLAN-003 (`ALERT_ROUTER_ALLOW_LEGACY_PATH=false`,
-  `ALERT_BOT_REQUIRE_TOKEN=true`).
+  host's Caddy. Authentication is enforced since 2026-11-05 14:05 UTC:
+  - `ALERT_ROUTER_ALLOW_LEGACY_PATH=false`: the old URL and wrong secrets
+    get 404;
+  - `ALERT_BOT_REQUIRE_TOKEN=true`: any path without the token gets 401,
+    including encoded and `;param` spellings (verified in prod).
+
+  Rotate a secret or token by adding a second comma-separated value,
+  switching callers, then removing the old one.
+- Restart order matters: the router does not retry a refused connection,
+  so alerts that arrive while the bot restarts are lost (11 were lost in
+  the ~3s gap during the 14:05 flip). Restart the bot first and the router
+  after it, and not in the first seconds after a 5-minute mark, when bar
+  closes fire bursts of alerts.
 - Backend alert domain docs: `../architecture/partnership-referrals-alerts.md`.
 
 ## Sending work to their agents

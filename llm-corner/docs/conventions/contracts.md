@@ -101,7 +101,7 @@ stay in this list as struck-through with their retirement DEC. -->
 - **C14.** Flyway migrations are append-only: never edit an applied
   `V*.sql` (Flyway checksum validation fails the app at startup); a
   schema change is always a new file with the next V number.
-  `src/main/resources/db/migration/` (V1–V18),
+  `src/main/resources/db/migration/` (V1–V19),
   `build.gradle.kts:69`.
 - **C15.** Any push to `master` auto-deploys production: GitHub
   Actions builds the image and runs
