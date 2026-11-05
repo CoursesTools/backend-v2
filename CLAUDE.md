@@ -8,7 +8,7 @@ Claude's personal workspace is `llm-corner/agents/claude/`; read its inbox durin
 
 ## Hard invariants (apply even if you read nothing else)
 
-1. **Never commit or push automatically.** Pushing `master` auto-deploys the live payment backend (GitHub Actions → build image → `docker compose pull backend && up -d`). Stop after verification and ask, unless the operator explicitly asked for commit/push in the current task.
+1. **Never commit or push automatically.** Pushing `master` auto-deploys the live payment backend (GitHub Actions → build image → `docker compose pull backend && up -d`). The one exception is a push that only touches `llm-corner/**`, which does not deploy (DEC-008). Stop after verification and ask, unless the operator explicitly asked for commit/push in the current task.
 2. **Gate before any work and before every commit:** `./gradlew build` — all tests PASS. There is no separate linter; the build IS the gate.
 3. **Never commit secrets, and treat migrations as immutable.** `.env` holds live Stripe keys, DB creds, and VPS passwords. Never edit an applied Flyway migration — add a new one.
 4. **Don't touch the co-located non-backend services on the prod box** (`plausible`, `pixel-canvas`, `caddy`) unless explicitly asked.
