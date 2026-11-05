@@ -8,8 +8,9 @@ customers pay real money (live Stripe, CryptoCloud, or internal
 balance — Payeer is retired; its validator rejects every new payment,
 `validation/validator/payment/impl/PayeerPaymentValidator.java:21`)
 for CT-Pro access to TradingView indicators, and the deploy pipeline has
-no staging stop — a push to `master` builds and restarts the
-production container directly
+no staging stop — a push to `master` (other than a docs-only
+`llm-corner/` push, DEC-008) builds and restarts the production
+container directly
 (`.github/workflows/docker-build.yml:3-5,67-72`). Treat every change,
 however small, as a production change. When in doubt, slow down and
 verify; a broken deploy here means broken checkout and broken access
@@ -56,7 +57,8 @@ copy with full reasoning — if the copies ever disagree, this one wins
 and the others must be re-synced. -->
 
 1. **Never auto-commit or auto-push.** Why: any push to `master`
-   triggers GitHub Actions, which builds the image and redeploys the
+   that touches more than `llm-corner/` (DEC-008) triggers GitHub
+   Actions, which builds the image and redeploys the
    live payment backend with zero manual gate
    (`.github/workflows/docker-build.yml:3-5` — `on: push: branches:
    ["master"]`; the deploy job SSHes to the prod box and runs

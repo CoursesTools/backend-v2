@@ -88,12 +88,14 @@ Local dev: `docker compose up` in the repo gives postgres on host port
 
 ## Deploy pipeline
 
-**ANY push to `master` auto-redeploys prod.** Do not push to master unless
-you intend to deploy.
+**A push to `master` that changes anything outside `llm-corner/`
+auto-redeploys prod.** Do not push such changes unless you intend to
+deploy. Pushes that only touch `llm-corner/**` skip the workflow
+(DEC-008): no restart, and no "Backend started" ops alert.
 
 Workflow: `.github/workflows/docker-build.yml` ("Build, Push and Deploy
-Docker Image"), triggers: push to `master` or manual `workflow_dispatch`
-(docker-build.yml:3-6).
+Docker Image"), triggers: push to `master` (except docs-only, see above) or
+manual `workflow_dispatch` (docker-build.yml:3-9).
 
 1. `build-and-push` job: JDK 17 (temurin) → `./gradlew build` (tests run —
    a failing test blocks the deploy) → buildx builds and pushes

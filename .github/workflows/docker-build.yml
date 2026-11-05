@@ -3,6 +3,9 @@ name: Build, Push and Deploy Docker Image
 on:
   push:
     branches: [ "master" ]
+    # Agent docs only: no build, no deploy (DEC-008). A push that also changes anything else deploys.
+    paths-ignore:
+      - 'llm-corner/**'
   workflow_dispatch:
 
 jobs:

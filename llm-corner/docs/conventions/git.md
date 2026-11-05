@@ -75,14 +75,20 @@ commit/push in the current task. (Hard invariant — `mindset.md`.)
 
 ## Push safety (push to master = prod deploy)
 
-**ANY push to `master` auto-deploys production.**
-`.github/workflows/docker-build.yml` triggers on
-`push: branches: [master]` (lines 3–5), runs `./gradlew build`
-(line 34), pushes `ghcr.io/coursestools/backend:latest` (line 51),
-then SSHes to the backend VPS and runs
-`docker compose pull backend && docker compose up -d backend` in
-`/root/coursestools` (lines 67–72). There is no staging environment
-in this pipeline.
+**A push to `master` that changes anything outside `llm-corner/`
+auto-deploys production.** `.github/workflows/docker-build.yml` triggers
+on `push: branches: [master]` with `paths-ignore: llm-corner/**`
+(lines 3–9), runs `./gradlew build` (line 37), pushes
+`ghcr.io/coursestools/backend:latest` (line 54), then SSHes to the
+backend VPS and runs `docker compose pull backend && docker compose up -d
+backend` in `/root/coursestools` (lines 73–74). There is no staging
+environment in this pipeline.
+
+**Docs-only pushes** (every changed file under `llm-corner/`) skip the
+workflow: no build, no restart (DEC-008). Keep docs-only changes in their
+own commits/PRs so they don't ride along with a deploy by accident. A PR
+that mixes code and docs deploys as a whole. The never-push-without-asking
+invariant still applies to docs.
 
 Consequences — all hard rules:
 

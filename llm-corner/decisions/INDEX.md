@@ -18,6 +18,7 @@ re-litigate this question without the record?"
 
 | ID | Title | Date | Status |
 |---|---|---|---|
+| DEC-008 | Pushes that only touch `llm-corner/` do not deploy (`DEC-008-docs-only-pushes-do-not-deploy.md`) | 2026-11-05 | ACCEPTED |
 | DEC-007 | Ops alerts are always stored; settings are admin-only and audited (`DEC-007-ops-alerts-persisted-admin-only-settings.md`) | 2026-11-05 | ACCEPTED |
 | DEC-006 | Grace pauses alerts; grace length is an admin setting (`DEC-006-grace-pauses-alerts-configurable-grace.md`) | 2026-11-05 | ACCEPTED |
 | DEC-005 | Stripe access moves only on paid invoices (`DEC-005-stripe-access-only-from-paid-invoices.md`) | 2026-11-05 | ACCEPTED |

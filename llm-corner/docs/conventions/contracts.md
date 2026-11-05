@@ -103,11 +103,12 @@ stay in this list as struck-through with their retirement DEC. -->
   schema change is always a new file with the next V number.
   `src/main/resources/db/migration/` (V1–V19),
   `build.gradle.kts:69`.
-- **C15.** Any push to `master` auto-deploys production: GitHub
-  Actions builds the image and runs
-  `docker compose pull backend && docker compose up -d backend` on the
-  prod VPS. Treat every master push as a prod release.
-  `.github/workflows/docker-build.yml:3-5`, `:70-71`.
+- **C15.** Any push to `master` that changes anything outside
+  `llm-corner/` auto-deploys production: GitHub Actions builds the image
+  and runs `docker compose pull backend && docker compose up -d backend` on
+  the prod VPS. Treat every such push as a prod release. A push whose
+  changes are **all** under `llm-corner/` skips the workflow (DEC-008).
+  `.github/workflows/docker-build.yml:3-9`, `:73-74`.
 - **C16.** Activation snapshot timestamps compare at PostgreSQL's
   microsecond storage precision. A current command with a genuine snapshot
   mismatch becomes DEAD and visible to admins; it is never silently deleted.
