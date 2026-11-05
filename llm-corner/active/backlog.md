@@ -26,8 +26,8 @@ Format:
 - **[Critical]** ~~Unpaid Stripe renewals got a free month~~ Shipped `e949d18`
   (backend-v2#41, deployed 2026-11-05 13:19 UTC). DEC-005. V16 and V18
   reverted subs 4999, 5165, 243, 5181 and 95 to their last paid end
-  (verified in prod). **Still open: the operator cancels TradingView access
-  for users 3074, 5402, 247, 2541 and 96.** Source: 11-05 investigation.
+  (verified in prod). The operator cancelled TradingView access for users
+  3074, 5402, 247, 2541 and 96 on 11-05. Source: 11-05 investigation.
 - **[High]** Admin TV force-retry replays a stored DEAD payload without
   re-checking the subscription (`TradingViewRetryService.forceRetry` →
   `processDueJobs`).

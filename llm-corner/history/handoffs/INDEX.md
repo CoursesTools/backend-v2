@@ -19,9 +19,9 @@ in this same directory.
 - **`2026-11-05-plan-003-released.md`** — current entry point.
   PLAN-003 is live in production: grace pauses alerts, ops alerts plus
   admin Settings/System Alerts, the Amsterdam relay, and enforced alert auth
-  (flips 14:05 UTC). Open: merge backend-v2#43 (V19 Crossing_equlibrium →
-  WCSMC, 401 for junk tokens). Then cancel TV access for users 3074, 5402,
-  247, 2541 and 96.
+  (flips 14:05 UTC). backend-v2#43 adds V19 (Crossing_equlibrium → WCSMC)
+  and 401 for junk tokens. Operator follow-ups are done; the remaining items
+  are in the backlog.
 - `2026-11-05-plan-003-release-runbook.md` — previous entry point.
   PLAN-003 is built and pushed as 4 PRs, none merged:
   - grace pauses alerts;

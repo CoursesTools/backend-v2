@@ -8,8 +8,8 @@ Commits: merged and deployed:
 - admin-web#16
 - frontend-v2#48
 
-**Open: backend-v2#43** (V19 + JWT filter + this record). The permission
-classifier blocks agents from merging it, so the operator must merge it.
+Plus backend-v2#43 (V19, JWT filter, this record), merged on operator
+instruction.
 
 ## State of the world
 
@@ -34,8 +34,9 @@ classifier blocks agents from merging it, so the operator must merge it.
 - **Data fixes:** V16/V18 reverted subs 4999, 5165, 243, 5181, 95.
   - The 14:00 run moved 5165, 243 and 5181 to grace; 95 follows at 18:00
     UTC (end of its settlement window).
-  - The operator still has to cancel TradingView access for users 3074,
-    5402, 247, 2541 and 96.
+  - The operator cancelled TradingView access for users 3074, 5402, 247,
+    2541 and 96. The temporary bot-token file was deleted, and the secrets
+    were copied to the operator's password manager.
 - Prod `/root/coursestools/.env` is now mode 600 (CI deploys as root; a
   deploy after the change succeeded).
 - psentogo (user 5561): resolved by the operator. It was the TV access
@@ -59,12 +60,11 @@ classifier blocks agents from merging it, so the operator must merge it.
 
 ## Open / deferred
 
-- **Merge backend-v2#43:**
+- backend-v2#43:
   - V19 moves `crossing_equlibrium` back to WCSMC. 63/63 arrival keys
     matched, and the migration was tested on PG16.
   - Unusable bearer tokens get 401 `"Invalid token"`.
-  - After deploy, confirm in the bot logs that `Crossing_equlibrium` stops
-    logging "Alert not found".
+  - Post-deploy verification is recorded in the changelog.
 - New backlog items:
   - router retry on refused connection (11 alerts lost in the flip
     restart);
