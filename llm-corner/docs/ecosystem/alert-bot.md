@@ -38,9 +38,12 @@ scheduler sends to Telegram every minute.
 - Bot auth: `X-Internal-Token` must match one of `ALERT_BOT_INTERNAL_TOKENS`
   (comma-separated, for rotation).
   - `GET /api/ops/stats` always requires it.
-  - `POST /api/alert` and `/api/alert/message` require it only once
-    `ALERT_BOT_REQUIRE_TOKEN=true`. Until then, unauthenticated calls are
-    accepted and WARN-logged at most once a minute.
+  - Once `ALERT_BOT_REQUIRE_TOKEN=true`, every path requires it (deny by
+    default). Until then, unauthenticated calls are accepted, and those to
+    `POST /api/alert` and `/api/alert/message` are WARN-logged at most once a
+    minute.
+  - The filter matches the path the way Spring routes it (decoded,
+    `;params` stripped), so encoded spellings cannot bypass it.
   - The router sends its token only to the CoursesTools bot.
 - `GET /api/ops/stats` returns counters for the last 15 min and 24h
   (`alertsReceived`, `messagesSent`, `sendAttemptsFailed`, `chatsRequeued`,

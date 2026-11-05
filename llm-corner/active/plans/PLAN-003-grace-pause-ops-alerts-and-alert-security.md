@@ -109,6 +109,11 @@
 - [x] Docs: DEC-006, DEC-007, C13/C14/C18, `ops-alerts.md`, admin,
   subscriptions, payments, persistence, security, alert-bot, admin-web,
   changelog.
-- [ ] Secrets: router webhook secret, bot internal token. Written to files
-  for the operator, never printed.
-- [ ] Release in rollout order + flips + frontend handoff
+- [x] Secrets generated into `ct-projects/ops-scripts/secrets/` (never
+  printed). Host env scripts written.
+- [x] PRs open: alert-bot-v2#2, alert-router#3, backend-v2#41, admin-web#16.
+  Bot token-filter bypass found in review and fixed (`6116d4e`).
+- [x] frontend-v2 handoff: `frontend-v2/claude-tasks/GRACE-PERIOD-FROM-API.md`.
+- [ ] Release: the operator follows the runbook in
+  `history/handoffs/2026-11-05-plan-003-release-runbook.md` (steps 0–10).
+- [ ] Flips done; close this plan (docs pass, archive to `history/plans/`).
