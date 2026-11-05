@@ -70,11 +70,17 @@ SecurityConfig.java:25).
    `role` → authority `ROLE_<role>` (lines 40-59).
 3. Principal is `UserPrincipal(int userId)` (config/security/UserPrincipal.java:3);
    controllers receive it via `@AuthenticationPrincipal UserPrincipal`.
-4. Expired token → 401 `"Token expired"`; bad signature → 401
-   `"Invalid signature"` — JSON `ErrorResponse` written directly
-   (lines 71-95).
-5. No/malformed header → filter passes through unauthenticated; the
-   authorization rules then reject with 403 (Spring default), not 401.
+4. A JSON `ErrorResponse` is written directly for an unusable token, and
+   the request stops:
+   - expired → 401 `"Token expired"`;
+   - bad signature → 401 `"Invalid signature"`;
+   - anything else that is not a usable JWT (garbage, empty, wrong format,
+     non-numeric subject) → 401 `"Invalid token"`, logged at debug only.
+     Before 2026-11-05 these escaped as servlet exceptions (an ERROR stack
+     trace per request, then 403).
+5. No `Authorization: Bearer` header → the filter passes through
+   unauthenticated, and the authorization rules then reject with 403
+   (Spring default), not 401.
 
 ## Roles & method security
 

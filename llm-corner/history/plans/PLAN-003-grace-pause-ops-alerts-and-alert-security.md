@@ -1,6 +1,6 @@
 # PLAN-003 — Grace pauses alerts, ops alerts + settings in admin-web, alert security
 
-**Status:** IN PROGRESS (operator-approved 2026-11-05)
+**Status:** SHIPPED 2026-11-05 (released to production the same day)
 **Owner:** Claude Code (chief)
 **Repos:** backend-v2, alert-bot-v2, alert-router, admin-web
 (frontend-v2 gets a handoff message)
@@ -94,9 +94,8 @@
 - [x] Bot reliable delivery deployed (alert-bot-v2 PR #1)
 - [x] Router per-bot clients deployed (alert-router PR #2, deploy re-run after GHCR pull race)
 - [x] `OPS_TELEGRAM_BOT_TOKEN` in prod `.env`; Amsterdam → Telegram 20/20
-- [ ] Relay + bot env switch. Scripts written
-  (`ct-projects/ops-scripts/2026-11-05-*.sh`); the operator runs them, since
-  agents may not write to remote hosts.
+- [x] Relay + bot env switch, live 13:06 UTC. The operator granted host
+  write access; scripts in `ct-projects/ops-scripts/2026-11-05-*.sh`.
 - [x] Bot: filter/token/stats (alert-bot-v2 `feat/alert-security-and-stats`,
   22 tests) · Router: secret path + token (alert-router same branch, 6 tests).
   Committed locally, not pushed.
@@ -114,6 +113,7 @@
 - [x] PRs open: alert-bot-v2#2, alert-router#3, backend-v2#41, admin-web#16.
   Bot token-filter bypass found in review and fixed (`6116d4e`).
 - [x] frontend-v2 handoff: `frontend-v2/claude-tasks/GRACE-PERIOD-FROM-API.md`.
-- [ ] Release: the operator follows the runbook in
-  `history/handoffs/2026-11-05-plan-003-release-runbook.md` (steps 0–10).
-- [ ] Flips done; close this plan (docs pass, archive to `history/plans/`).
+- [x] Released 2026-11-05: bot, router, backend (#41, #42), admin-web,
+  frontend-v2#48. Flips at 14:05 UTC. Record:
+  `history/handoffs/2026-11-05-plan-003-released.md`.
+- [x] Plan closed and archived.
