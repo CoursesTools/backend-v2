@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -69,6 +70,17 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "Data validation exception",
                 e.getMessage()
+        );
+    }
+
+    // A malformed path/query value (e.g. an unknown enum name) is a client error, not a server failure.
+    @ExceptionHandler
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handle(final MethodArgumentTypeMismatchException e) {
+        return new ErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                "Data validation exception",
+                "Invalid value for parameter '" + e.getName() + "'"
         );
     }
 

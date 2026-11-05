@@ -11,10 +11,12 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class SubscriptionPastGracePeriodStartupReconciler {
     private final SubscriptionStateReconciliationService subscriptionStateReconciliationService;
+    private final AlertService alertService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void reconcileOnStartup() {
         log.info("Running past-grace subscription reconciliation on application startup");
-        subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("startup");
+        subscriptionStateReconciliationService.reconcilePastGracePeriodSubscriptions("startup")
+                .forEach(alertService::removeAlertsIfNoActiveSubscription);
     }
 }

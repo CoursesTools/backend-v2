@@ -593,8 +593,9 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void syncStripeSubscriptionUpdated_updatesPeriodEndAndStripeMetadata() {
-        long currentPeriodEnd = 1777698505L;
+    void syncStripeSubscriptionUpdated_periodRollRecordsStripeStateButNeverExtendsUnpaidAccess() {
+        long rolledPeriodEnd = 1777698505L;
+        LocalDateTime paidExpiry = LocalDateTime.of(2026, 5, 2, 0, 0);
         User user = new User();
         user.setId(4);
         UserSubscription subscription = UserSubscription.builder()
@@ -603,27 +604,61 @@ class SubscriptionServiceTest {
                 .status(SubscriptionStatus.GRANTED)
                 .paymentMethod(PaymentMethod.STRIPE)
                 .isTrial(false)
-                .expiredAt(LocalDateTime.of(2026, 5, 2, 0, 0))
+                .expiredAt(paidExpiry)
                 .paymentProviderData(new HashMap<>(Map.of(StripePaymentService.SUBSCRIPTION_ID, "sub_sync")))
                 .build();
 
-        SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
         when(userSubscriptionRepository.findByStripeSubscriptionId("sub_sync")).thenReturn(Optional.of(subscription));
-        when(subscriptionMapper.toEvent(user, SubscriptionEventType.EXTENDED, subscription, EXACT)).thenReturn(event);
 
         subscriptionService.syncStripeSubscriptionUpdated(StripeSubscriptionLifecycleDto.builder()
                 .subscriptionId("sub_sync")
-                .currentPeriodEnd(currentPeriodEnd)
-                .status("active")
+                .currentPeriodEnd(rolledPeriodEnd)
+                .status("past_due")
                 .cancelAtPeriodEnd(false)
                 .build());
 
-        assertEquals(LocalDateTime.ofInstant(Instant.ofEpochSecond(currentPeriodEnd), ZoneOffset.UTC),
-                subscription.getExpiredAt());
-        assertEquals(currentPeriodEnd, subscription.getPaymentProviderData().get(CURRENT_PERIOD_END));
-        assertEquals("active", subscription.getPaymentProviderData().get(STRIPE_STATUS));
+        assertEquals(paidExpiry, subscription.getExpiredAt());
+        assertEquals(SubscriptionStatus.GRANTED, subscription.getStatus());
+        assertEquals(rolledPeriodEnd, subscription.getPaymentProviderData().get(CURRENT_PERIOD_END));
+        assertEquals("past_due", subscription.getPaymentProviderData().get(STRIPE_STATUS));
         assertEquals(false, subscription.getPaymentProviderData().get(CANCEL_AT_PERIOD_END));
         verify(userSubscriptionService).save(subscription);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void handleStripeSubscriptionDeleted_afterFailedDunningKeepsLastPaidExpiry() {
+        LocalDateTime paidExpiry = LocalDateTime.of(2026, 10, 25, 14, 43, 40);
+        long unpaidPeriodEnd = paidExpiry.plusMonths(1).toEpochSecond(ZoneOffset.UTC);
+        User user = new User();
+        user.setId(3074);
+        UserSubscription subscription = UserSubscription.builder()
+                .id(4999)
+                .user(user)
+                .status(SubscriptionStatus.GRACE_PERIOD)
+                .paymentMethod(PaymentMethod.STRIPE)
+                .isTrial(false)
+                .expiredAt(paidExpiry)
+                .paymentProviderData(new HashMap<>(Map.of(StripePaymentService.SUBSCRIPTION_ID, "sub_dunning")))
+                .build();
+        SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
+
+        when(userSubscriptionRepository.findByStripeSubscriptionId("sub_dunning")).thenReturn(Optional.of(subscription));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, subscription, EXACT))
+                .thenReturn(event);
+
+        Optional<Integer> terminatedUser = subscriptionService.handleStripeSubscriptionDeleted(
+                StripeSubscriptionLifecycleDto.builder()
+                        .subscriptionId("sub_dunning")
+                        .currentPeriodEnd(unpaidPeriodEnd)
+                        .status("canceled")
+                        .cancelAtPeriodEnd(false)
+                        .build());
+
+        assertEquals(Optional.of(3074), terminatedUser);
+        assertEquals(SubscriptionStatus.TERMINATED, subscription.getStatus());
+        assertEquals(paidExpiry, subscription.getExpiredAt());
+        assertEquals(unpaidPeriodEnd, subscription.getPaymentProviderData().get(CURRENT_PERIOD_END));
         verify(eventPublisher).publishEvent(event);
     }
 
@@ -679,13 +714,15 @@ class SubscriptionServiceTest {
         when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_END, subscription, EXACT))
                 .thenReturn(event);
 
-        subscriptionService.handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto.builder()
-                .subscriptionId("sub_deleted")
-                .currentPeriodEnd(1777698505L)
-                .status("canceled")
-                .cancelAtPeriodEnd(false)
-                .build());
+        Optional<Integer> terminatedUser = subscriptionService.handleStripeSubscriptionDeleted(
+                StripeSubscriptionLifecycleDto.builder()
+                        .subscriptionId("sub_deleted")
+                        .currentPeriodEnd(1777698505L)
+                        .status("canceled")
+                        .cancelAtPeriodEnd(false)
+                        .build());
 
+        assertEquals(Optional.of(5), terminatedUser);
         assertEquals(SubscriptionStatus.TERMINATED, subscription.getStatus());
         assertFalse(referral.isActive());
         assertEquals("canceled", subscription.getPaymentProviderData().get(STRIPE_STATUS));
@@ -713,13 +750,15 @@ class SubscriptionServiceTest {
 
         when(userSubscriptionRepository.findByStripeSubscriptionId("sub_old")).thenReturn(Optional.of(subscription));
 
-        subscriptionService.handleStripeSubscriptionDeleted(StripeSubscriptionLifecycleDto.builder()
-                .subscriptionId("sub_old")
-                .currentPeriodEnd(1777698505L)
-                .status("canceled")
-                .cancelAtPeriodEnd(false)
-                .build());
+        Optional<Integer> terminatedUser = subscriptionService.handleStripeSubscriptionDeleted(
+                StripeSubscriptionLifecycleDto.builder()
+                        .subscriptionId("sub_old")
+                        .currentPeriodEnd(1777698505L)
+                        .status("canceled")
+                        .cancelAtPeriodEnd(false)
+                        .build());
 
+        assertEquals(Optional.empty(), terminatedUser);
         assertEquals(SubscriptionStatus.GRANTED, subscription.getStatus());
         assertTrue(referral.isActive());
         verify(userSubscriptionService, never()).save(subscription);

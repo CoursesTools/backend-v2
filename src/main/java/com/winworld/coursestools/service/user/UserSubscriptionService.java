@@ -9,6 +9,7 @@ import com.winworld.coursestools.exception.exceptions.EntityNotFoundException;
 import com.winworld.coursestools.mapper.UserMapper;
 import com.winworld.coursestools.repository.user.UserSubscriptionRepository;
 import com.winworld.coursestools.service.SubscriptionStateReconciliationService;
+import com.winworld.coursestools.service.ops.SystemSettingsService;
 import com.winworld.coursestools.specification.userSubscription.UserSubscriptionSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,6 +26,7 @@ public class UserSubscriptionService {
     private final UserMapper userMapper;
     private final UserSubscriptionSpecification userSubscriptionSpecification;
     private final SubscriptionStateReconciliationService subscriptionStateReconciliationService;
+    private final SystemSettingsService systemSettingsService;
 
     public Optional<UserSubscription> getUserSubBySubTypeIdNotTerminated(int userId, int subscriptionTypeId) {
         return userSubscriptionRepository.getUserSubBySubTypeNotTerminated(subscriptionTypeId, userId);
@@ -75,9 +77,16 @@ public class UserSubscriptionService {
                 .and((root, query, cb) ->
                         cb.equal(root.get(UserSubscription.USER).get(User.ID), userId)
                 );
+        int gracePeriodDays = systemSettingsService.getGracePeriodDays();
         return userSubscriptionRepository.findAll(specification)
                 .stream()
-                .map(userMapper::toDto)
+                .map(subscription -> {
+                    UserSubscriptionReadDto dto = userMapper.toDto(subscription);
+                    if (subscription.getStatus() == SubscriptionStatus.GRACE_PERIOD) {
+                        dto.setGracePeriodEndsAt(subscription.getExpiredAt().plusDays(gracePeriodDays));
+                    }
+                    return dto;
+                })
                 .toList();
     }
 }

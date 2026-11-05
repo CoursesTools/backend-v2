@@ -17,11 +17,12 @@ public class SubscriptionScheduler {
     private final AlertService alertService;
 
     //TODO последить за кол-вом пользователей, если будет много, то нужно будет оптимизировать
+    // Entering grace only pauses alerts (the alert bot delivers to active subscriptions only);
+    // the user's alert list is kept so it resumes as soon as they pay.
     @Scheduled(cron = "${scheduler.subscription.expired-subscriptions}")
     public void deactivateExpiredSubscriptions() {
         log.info("Deactivating expired subscriptions job start");
-        var usersIds = subscriptionService.deactivateExpiredSubscriptions();
-        usersIds.forEach(alertService::unSubscribeOnAllAlerts);
+        subscriptionService.deactivateExpiredSubscriptions();
         log.info("Deactivating expired subscriptions job end");
     }
 
@@ -29,14 +30,15 @@ public class SubscriptionScheduler {
     public void cleanupExpiredTrialSubscriptions() {
         log.info("Deactivating trial expired subscriptions job start");
         var usersIds = subscriptionService.deactivateExpiredTrialSubscriptions();
-        usersIds.forEach(alertService::unSubscribeOnAllAlerts);
+        usersIds.forEach(alertService::removeAlertsIfNoActiveSubscription);
         log.info("Deactivating trial expired subscriptions job end");
     }
 
     @Scheduled(cron = "${scheduler.subscription.grace-period-expired-subscriptions}")
     public void cleanupExpiredGracePeriodSubscriptions() {
         log.info("Deactivating expired subscriptions with grace period job start");
-        subscriptionService.deactivateExpiredGracePeriodSubscriptions();
+        var usersIds = subscriptionService.deactivateExpiredGracePeriodSubscriptions();
+        usersIds.forEach(alertService::removeAlertsIfNoActiveSubscription);
         log.info("Deactivating expired subscriptions with grace period job end");
     }
 

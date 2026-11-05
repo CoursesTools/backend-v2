@@ -82,7 +82,7 @@ class SubscriptionDeactivationServiceTest {
     }
 
     @Test
-    void deactivateSingleSubscription_movesStripeSubscriptionToGraceButDoesNotCancelStripe() {
+    void deactivateSingleSubscription_movesStripeSubscriptionToGraceAfterSettlementWindowButDoesNotCancelStripe() {
         User user = new User();
         user.setId(202);
 
@@ -92,7 +92,7 @@ class SubscriptionDeactivationServiceTest {
                 .paymentMethod(PaymentMethod.STRIPE)
                 .status(SubscriptionStatus.GRANTED)
                 .isTrial(false)
-                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1))
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1).minusMinutes(1))
                 .paymentProviderData(new java.util.HashMap<>())
                 .build();
 
@@ -106,6 +106,49 @@ class SubscriptionDeactivationServiceTest {
 
         assertEquals(SubscriptionStatus.GRACE_PERIOD, userSubscription.getStatus());
         verify(stripePaymentService, never()).cancelSubscription(userSubscription);
+        verify(eventPublisher).publishEvent(event);
+    }
+
+    @Test
+    void deactivateSingleSubscription_holdsStripeRenewalInsideSettlementWindow() {
+        UserSubscription renewing = UserSubscription.builder()
+                .id(87)
+                .paymentMethod(PaymentMethod.STRIPE)
+                .status(SubscriptionStatus.GRANTED)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusHours(1))
+                .paymentProviderData(new java.util.HashMap<>())
+                .build();
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(87)).thenReturn(Optional.of(renewing));
+
+        assertFalse(subscriptionDeactivationService.deactivateSingleSubscription(87));
+
+        assertEquals(SubscriptionStatus.GRANTED, renewing.getStatus());
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deactivateSingleSubscription_movesNonStripeSubscriptionToGraceImmediately() {
+        User user = new User();
+        user.setId(203);
+
+        UserSubscription crypto = UserSubscription.builder()
+                .id(88)
+                .user(user)
+                .paymentMethod(PaymentMethod.CRYPTO)
+                .status(SubscriptionStatus.GRANTED)
+                .isTrial(false)
+                .expiredAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1))
+                .build();
+        SubscriptionChangeStatusEvent event = new SubscriptionChangeStatusEvent();
+
+        when(userSubscriptionRepository.findByIdWithUserDetailsForUpdate(88)).thenReturn(Optional.of(crypto));
+        when(subscriptionMapper.toEvent(user, SubscriptionEventType.GRACE_PERIOD_START, crypto, EXACT))
+                .thenReturn(event);
+
+        assertTrue(subscriptionDeactivationService.deactivateSingleSubscription(88));
+
+        assertEquals(SubscriptionStatus.GRACE_PERIOD, crypto.getStatus());
         verify(eventPublisher).publishEvent(event);
     }
 

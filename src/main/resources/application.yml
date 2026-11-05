@@ -84,6 +84,32 @@ urls:
   telegram-bot: ${TELEGRAM_BOT_URL}
   alert-bot: ${ALERT_BOT_URL}
 
+# System (ops) alerts to admins' Telegram and the admin-web history page (PLAN-003).
+ops:
+  checks-enabled: ${OPS_CHECKS_ENABLED:true}
+  admin-web-url: ${OPS_ADMIN_WEB_URL:https://admin.coursestools.com}
+  reminder-interval: 6h
+  telegram:
+    bot-token: ${OPS_TELEGRAM_BOT_TOKEN:}
+    api-base-url: ${OPS_TELEGRAM_API_BASE_URL:https://api.telegram.org}
+  alert-bot:
+    stats-url: ${ALERT_BOT_STATS_URL:https://alerts.tw1.su/api/ops/stats}
+    internal-token: ${ALERT_BOT_INTERNAL_TOKEN:}
+  loki:
+    url: ${OPS_LOKI_URL:http://77.232.135.132:3100}
+    tenant: backend
+  stripe-webhook-path: /api/v1/payments/stripe
+  domains:
+    - coursestools.com
+    - winworldteam.com
+  tls-hosts:
+    - api.coursestools.com
+    - coursestools.com
+    - admin.coursestools.com
+    - api.winworldteam.com
+    - alerts.tw1.su
+    - winworldteam.ru
+
 cors:
   domains:
     web: ${CORS_WEB_DOMAINS}
